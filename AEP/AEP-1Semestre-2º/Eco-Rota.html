@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>EcoRota</title>
+
+    <!-- ============================================
+         1. BIBLIOTECAS EXTERNAS - LEAFLET (Mapas)
+         ============================================ -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- ============================================
+         2. BIBLIOTECAS EXTERNAS - CHART.JS (Gráficos)
+         ============================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+
+        /* ========================================
+           3.1 - RESET E ESTILOS BÁSICOS DO BODY
+           ======================================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #ecf8e5, #f5f7fa, #dcf4ce);
+            background-size: 200% 200%;
+            animation: gradienteAnimado 12s ease infinite;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+        }
+
+        /* Animação de gradiente de fundo */
+        @keyframes gradienteAnimado {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* ========================================
+           3.2 - SEÇÃO DE INÍCIO (HEADER)
+           ======================================== */
+        #inicio {
+            background: linear-gradient(135deg, #2c5e2e 0%, #4a8c3a 100%);
+            text-align: center;
+            margin: 30px auto 20px auto;
+            max-width: 600px;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #inicio h1 {
+            margin: 0;
+            line-height: 1.4;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            font-size: 50px;
+            font-weight: bold;
+        }
+
+        /* ========================================
+           3.3 - SISTEMA DE ABAS
+           ======================================== */
+        .tab-container {
+            width: 100%;
+            padding: 20px;
+        }
+
+        /* Botões das abas */
+        .tab-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            background-color: #fff;
+            border: 4px solid #000;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 2px solid #2c5e2e;
+            background-color: #ffffff;
+            color: #2c5e2e;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background-color: #e8f5e9;
+            transform: translateY(-2px);
+        }
+
+        .tab-btn.active {
+            background-color: #2c5e2e;
+            color: #ffffff;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(44, 94, 46, 0.3);
+        }
+
+        /* Conteúdo das abas */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Animação de fade-in */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ========================================
+           3.4 - TÍTULOS E DESCRIÇÕES
+           ======================================== */
+        .tab-content h3 {
+            font-size: 30px;
+            margin-left: 20px;
+            color: #2c5e2e;
+            margin-bottom: 10px;
+        }
+
+        .tab-content > p {
+            margin-left: 15px;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        /* ========================================
+           3.5 - CONTAINERS PRINCIPAIS
+           ======================================== */
+        /* Container 1: KPIs (Lixeiras Críticas, Preenchimento, etc.) */
+        .container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+            margin-left: 20px;
+            margin-right: 20px;
+        }
+
+        /* Container 2: Mapa, Detalhes e Todas as Lixeiras */
+        .container2 {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+            margin-left: 20px;
+            margin-right: 20px;
+            align-items: flex-start;
+        }
+
+        /* Container 3: Rotas do Dia e Mapa da Rota */
+        .container3 {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+            margin-left: 20px;
+            margin-right: 20px;
+            align-items: flex-start;
+        }
+
+        /* ========================================
+           3.6 - CARDS
+           ======================================== */
+        #LixeiraCritica, #PreenchimentoMedio, #EconomiaCombustivel, #EmissoesEvitadas {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            width: 22%;
+            min-width: 200px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        #LixeiraCritica:hover, #PreenchimentoMedio:hover, #EconomiaCombustivel:hover, #EmissoesEvitadas:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        #LixeiraCritica h4, #PreenchimentoMedio h4, #EconomiaCombustivel h4, #EmissoesEvitadas h4 {
+            font-size: 18px;
+            color: #2c5e2e;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #LixeiraCritica .valor, #PreenchimentoMedio .valor, #EconomiaCombustivel .valor, #EmissoesEvitadas .valor {
+            font-size: 40px;
+            font-weight: bold;
+            color: #2c5e2e;
+            margin: 10px 0;
+        }
+
+        #LixeiraCritica p, #PreenchimentoMedio p, #EconomiaCombustivel p, #EmissoesEvitadas p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* ========================================
+           3.7 - MAPA PRINCIPAL
+           ======================================== */
+        #mapa-maringa {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            height: 500px;
+            width: 55%;
+            min-width: 300px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        #mapa-maringa h4 {
+            font-size: 20px;
+            margin-left: 20px;
+            margin-top: 15px;
+            color: #2c5e2e;
+            font-weight: bold;
+        }
+
+        #mapa-maringa p {
+            font-size: 14px;
+            margin-left: 20px;
+            color: #666;
+        }
+
+        /* Div interna para o mapa Leaflet */
+        #map-container {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        /* ========================================
+           3.8 - DETALHES DAS LIXEIRAS
+           ======================================== */
+        #DetalhesLixeiras {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            width: 22%;
+            min-width: 250px;
+            height: auto;
+            max-height: 500px;
+            padding: 20px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Adicione sombra */
+            overflow-y: auto;
+        }
+
+        #DetalhesLixeiras h4 {
+            font-size: 20px;
+            color: #2c5e2e;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .detalhe-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .detalhe-item:last-child {
+            border-bottom: none;
+        }
+
+        .detalhe-label {
+            font-size: 12px;
+            color: #999;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .detalhe-valor {
+            font-size: 16px;
+            color: #2c5e2e;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        /* Barra de progresso */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden; /* Esconde o conteúdo que ultrapassar a borda */
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #ff9800, #ffc107);
+        }
+
+        .progress-fill.critical {
+            background: linear-gradient(90deg, #f44336, #e91e63);
+        }
+
+        /* ========================================
+           3.9 - TODAS AS LIXEIRAS
+           ======================================== */
+        #todaslixeiras {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            width: 22%;
+            min-width: 250px;
+            height: auto;
+            max-height: 500px;
+            padding: 20px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        #todaslixeiras h4 {
+            font-size: 20px;
+            color: #2c5e2e;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #todaslixeiras p {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        /* Lista de lixeiras */
+        .lixeira-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: #f5f5f5;
+            border-left: 4px solid #4caf50;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .lixeira-item:hover {
+            background-color: #e8f5e9;
+            transform: translateX(5px);
+        }
+
+        .lixeira-item.warning {
+            border-left-color: #ff9800;
+        }
+
+        .lixeira-item.critical {
+            border-left-color: #f44336;
+        }
+
+        .lixeira-nome {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c5e2e;
+            margin-bottom: 5px;
+        }
+
+        .lixeira-nivel {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* ========================================
+           3.10 - ROTAS DO DIA
+           ======================================== */
+        #rotasdodia {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            width: 22%;
+            min-width: 250px;
+            height: auto;
+            max-height: 500px;
+            padding: 20px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        #rotasdodia h4 {
+            font-size: 20px;
+            color: #2c5e2e;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .rota-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: #f5f5f5;
+            border-left: 4px solid #2196f3;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .rota-item:hover {
+            background-color: #e3f2fd;
+            transform: translateX(5px);
+        }
+
+        .rota-nome {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c5e2e;
+            margin-bottom: 8px;
+        }
+
+        .rota-info {
+            font-size: 12px;
+            color: #666;
+            margin: 4px 0;
+        }
+
+        /* ========================================
+           3.11 - MAPA DA ROTA
+           ======================================== */
+        #mapa-da-rota {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            height: 500px;
+            width: 55%;
+            min-width: 300px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        #mapa-da-rota h4 {
+            font-size: 20px;
+            margin-left: 20px;
+            margin-top: 15px;
+            color: #2c5e2e;
+            font-weight: bold;
+        }
+
+        #mapa-da-rota p {
+            font-size: 14px;
+            margin-left: 20px;
+            color: #666;
+        }
+
+        /* Div interna para o mapa Leaflet da rota */
+        #map-route-container {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        /* ========================================
+           3.12 - GRÁFICO DE TENDÊNCIAS
+           ======================================== */
+        #graficoTendencias {
+            background-color: #ffffffc0;
+            border: 4px solid #2c5e2e;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        #graficoTendencias h4 {
+            font-size: 20px;
+            color: #2c5e2e;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #chartContainer {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        /* ========================================
+           3.13 - RESPONSIVIDADE
+           ======================================== */
+        @media (max-width: 1024px) {
+            .container, .container2, .container3 {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            #LixeiraCritica, #PreenchimentoMedio, #EconomiaCombustivel, #EmissoesEvitadas,
+            #mapa-maringa, #DetalhesLixeiras, #todaslixeiras, #rotasdodia, #mapa-da-rota {
+                width: 90%;
+                min-width: auto;
+            }
+        }
+
+        @media (max-width: 768px) {
+            #inicio h1 {
+                font-size: 36px;
+            }
+
+            .tab-content h3 {
+                font-size: 24px;
+            }
+
+            #LixeiraCritica, #PreenchimentoMedio, #EconomiaCombustivel, #EmissoesEvitadas {
+                width: 100%;
+            }
+        }
+    </style>
+
+</style>
+    
+</head>
+<body>
+    
+    <!-- ============================================
+         SEÇÃO 1: HEADER COM TÍTULO
+         ============================================ -->
+    <div id="inicio">
+        <header>
+            <h1>EcoRota</h1>
+        </header>
+    </div>
+    
+    <!-- ============================================
+         SEÇÃO 2: SISTEMA DE ABAS
+         ============================================ -->
+    <div class="tab-container">
+        <!-- Botões das abas -->
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="openTab(event, 'aba1')">📊 Painel</button>
+            <button class="tab-btn" onclick="openTab(event, 'aba2')">🗺️ Rotas</button>
+        </div>
+
+        <!-- ============================================
+             ABA 1: PAINEL PRINCIPAL
+             ============================================ -->
+        <div id="aba1" class="tab-content active">
+          <h3><strong><b> PAINEL PRINCIPAL</b></strong></h3>
+            <p>Monitoramento Inteligente de Resíduos em Tempo Real</p>
+
+            <!-- ========================================
+                 CONTAINER 1
+                 ======================================== -->
+            <div class="container">
+                <!-- Lixeiras Críticas -->
+                <div id="LixeiraCritica">
+                    <h4> Lixeiras Críticas</h4>
+                    <div class="valor" id="valor-critica">0</div>
+                    <p>Requerem coleta imediata</p>
+                </div>
+
+                <!-- Preenchimento Médio -->
+                <div id="PreenchimentoMedio">
+                    <h4> Preenchimento Médio</h4>
+                    <div class="valor" id="valor-preenchimento">0%</div>
+                    <p>Todas as lixeiras</p>
+                </div>
+
+                <!-- Economia de Combustível -->
+                <div id="EconomiaCombustivel">
+                    <h4> Economia de Combustível</h4>
+                    <div class="valor" id="valor-combustivel">0L</div>
+                    <p>Hoje (estimado)</p>
+                </div>
+
+                <!--Emissões Evitadas -->
+                <div id="EmissoesEvitadas">
+                    <h4>Emissões Evitadas</h4>
+                    <div class="valor" id="valor-emissoes">0kg</div>
+                    <p>CO₂ (estimado)</p>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 CONTAINER 2: MAPA, DETALHES E LIXEIRAS
+                 ======================================== -->
+            <div class="container2">
+                <!-- Mapa Principal -->
+                <div id="mapa-maringa">
+                    <h4> Mapa das Lixeiras</h4>
+                    <p>Localização e Status em Tempo Real</p>
+                    <div id="map-container"></div>
+                </div>
+
+                <!-- Detalhes da Lixeira Selecionada -->
+                <div id="DetalhesLixeiras">
+                    <h4> Detalhes da Lixeira</h4>
+                    <div id="detalhes-conteudo">
+                        <p style="text-align: center; color: #999;">Selecione uma lixeira no mapa</p>
+                    </div>
+                </div>
+
+                <!-- Todas as Lixeiras -->
+                <div id="todaslixeiras">
+                    <h4> Todas as Lixeiras</h4>
+                    <p id="total-lixeiras">5 pontos monitorados</p>
+                    <div id="lista-lixeiras"></div>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 GRÁFICO DE TENDÊNCIAS
+                 ======================================== -->
+            <div id="graficoTendencias">
+                <h4>📈 Tendência de Preenchimento</h4>
+                <p style="font-size: 12px; color: #999; margin-bottom: 15px;">Evolução ao longo do dia</p>
+                <div id="chartContainer">
+                    <canvas id="myChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             ABA 2: ROTAS OTIMIZADAS
+             ============================================ -->
+        <div id="aba2" class="tab-content">
+          <h3><strong><b>ROTAS OTIMIZADAS</strong></b></h3>
+            <p>Planejamento Inteligente de Coleta com Algoritmo de Otimização</p>
+
+            <!-- ========================================
+                 CONTAINER 3: ROTAS E MAPA DA ROTA
+                 ======================================== -->
+            <div class="container3">
+                <!-- Rotas do Dia -->
+                <div id="rotasdodia">
+                    <h4>Rotas do Dia</h4>
+                    <p id="total-rotas">2 rotas planejadas</p>
+                    <div id="lista-rotas"></div>
+                </div>
+
+                <!-- Mapa da Rota -->
+                <div id="mapa-da-rota">
+                    <h4>🗺️ Mapa da Rota</h4>
+                    <p>Visualização Geográfica dos Pontos de Coleta</p>
+                    <div id="map-route-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+
+       //  SEÇÃO 3: O JAVASCRIPT 
+    
+
+// ============================================
+// SEÇÃO 1: DADOS SIMULADOS DE LIXEIRAS (IoT)
+// ============================================
+
+/**
+ * Array das lixeiras com dados simulados
+ * Cada lixeira tem: id, nome, localização (lat/lng), nível de preenchimento, status
+ */
+const lixeiras = [
+    {
+        id: 'bin-001',
+        nome: 'Lixeira Centro - Av. Principal',
+        lat: -23.4208,
+        lng: -51.9331,
+        fillLevel: 85,
+        status: 'critical',
+        lastUpdated: '2 min atrás'
+    },
+    {
+        id: 'bin-002',
+        nome: 'Lixeira Parque - Zona Verde',
+        lat: -23.4215,
+        lng: -51.9340,
+        fillLevel: 45,
+        status: 'empty',
+        lastUpdated: '5 min atrás'
+    },
+    {
+        id: 'bin-003',
+        nome: 'Lixeira Shopping - Entrada',
+        lat: -23.4200,
+        lng: -51.9320,
+        fillLevel: 72,
+        status: 'warning',
+        lastUpdated: '1 min atrás'
+    },
+    {
+        id: 'bin-004',
+        nome: 'Lixeira Hospital - Emergência',
+        lat: -23.4225,
+        lng: -51.9350,
+        fillLevel: 38,
+        status: 'empty',
+        lastUpdated: '3 min atrás'
+    },
+    {
+        id: 'bin-005',
+        nome: 'Lixeira Escola - Recreio',
+        lat: -23.4190,
+        lng: -51.9310,
+        fillLevel: 62,
+        status: 'warning',
+        lastUpdated: '4 min atrás'
+    }
+];
+
+/**
+ * Array de rotas otimizadas
+ * Cada rota contém: id, nome, paradas (sequência de lixeiras), tempo estimado, distância
+ */
+const rotas = [
+    {
+        id: 'route-001',
+        nome: 'Rota Centro - Manhã',
+        paradas: ['bin-001', 'bin-003', 'bin-005'],
+        tempoEstimado: '45 min',
+        distancia: '12.5 km',
+        combustivel: '2.1 L',
+        status: 'in_progress'
+    },
+    {
+        id: 'route-002',
+        nome: 'Rota Zona Verde - Tarde',
+        paradas: ['bin-002', 'bin-004'],
+        tempoEstimado: '30 min',
+        distancia: '8.7 km',
+        combustivel: '1.5 L',
+        status: 'pending'
+    }
+];
+
+/**
+ * Dados de tendência de preenchimento ao longo do dia
+ * Usado para gráfico de evolução
+ */
+const tendenciaPreenchimento = [
+    { hora: '08:00', preenchimento: 32 }, /* Simulação de preenchimento ao longo do dia */
+    { hora: '10:00', preenchimento: 45 }, /* Simulação de preenchimento ao longo do dia */
+    { hora: '12:00', preenchimento: 58 }, /* Simulação de preenchimento ao longo do dia */
+    { hora: '14:00', preenchimento: 68 }, /* Simulação de preenchimento ao longo do dia */
+    { hora: '16:00', preenchimento: 75 }, /* Simulação de preenchimento ao longo do dia */
+    { hora: '18:00', preenchimento: 82 }  /* Simulação de preenchimento ao longo do dia */
+];
+
+// ============================================
+// SEÇÃO 2: VARIÁVEIS GLOBAIS
+// ============================================
+
+let mapaMaringa = null;           // Instância do mapa principal (Leaflet)
+let mapaRota = null;              // Instância do mapa de rota (Leaflet)
+let marcadores = [];              // Array para armazenar marcadores do mapa
+let lixeiraSelecionada = null;    // Lixeira atualmente selecionada
+let rotaSelecionada = null;       // Rota atualmente selecionada
+let graficoTendencia = null;      // Instância do gráfico Chart.js
+
+// ============================================
+// SEÇÃO 3: FUNÇÕES DE SISTEMA DE ABAS
+// ============================================
+
+/**
+ * Função para abrir/fechar abas
+ * @param {Event} evt - Evento do clique
+ * @param {string} tabName - Nome da aba a ser exibida
+ */
+function openTab(evt, tabName) {
+    // Esconde todos os elementos com a classe "tab-content"
+    const contents = document.getElementsByClassName("tab-content");
+    for (let i = 0; i < contents.length; i++) { /* Loop para remover a classe "active" de todas as abas */
+        contents[i].classList.remove("active");
+    }
+
+    // Remove a classe "active" de todos os botões
+    const buttons = document.getElementsByClassName("tab-btn");
+    for (let i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove("active");
+    }
+
+    // Mostra a aba atual e adiciona a classe "active" ao botão clicado
+    document.getElementById(tabName).classList.add("active");
+    evt.currentTarget.classList.add("active");/* Adiciona a classe "active" ao botão clicado */
+
+    // Se for a aba de rotas, inicializar o mapa de rota
+    if (tabName === 'aba2') {
+        setTimeout(() => { /* Timeout para garantir que o conteúdo da aba esteja renderizado antes de inicializar o mapa */
+            if (!mapaRota) {
+                inicializarMapaRota();
+            }
+        }, 100);
+    }
+}
+
+// ============================================
+// SEÇÃO 4: FUNÇÕES DE CÁLCULO DE KPIs
+// ============================================
+
+/**
+ * Calcula o número de lixeiras em status crítico
+ * @returns {number} Quantidade de lixeiras críticas
+ */
+function calcularLixeirasCriticas() {
+    return lixeiras.filter(l => l.status === 'critical').length;
+}
+
+/**
+ * Calcula o preenchimento médio de todas as lixeiras
+ * @returns {number} Preenchimento médio em percentual
+ */
+function calcularPreenchimentoMedio() {
+    const total = lixeiras.reduce((sum, l) => sum + l.fillLevel, 0);
+    return (total / lixeiras.length).toFixed(1);
+}
+
+/**
+ * Calcula a economia de combustível estimada
+ * Baseado no número de lixeiras críticas (evita coletas desnecessárias)
+ * @returns {number} Economia em litros
+ */
+function calcularEconomiaCombustivel() {
+    const criticas = calcularLixeirasCriticas();
+    return (criticas * 2.5).toFixed(1);
+}
+
+/**
+ * Calcula as emissões de CO2 evitadas
+ * Baseado na economia de combustível (1L de combustível = ~2.3kg CO2)
+ * @returns {number} Emissões evitadas em kg
+ */
+function calcularEmissoesEvitadas() {
+    const combustivel = calcularEconomiaCombustivel();
+    return (combustivel * 2.3).toFixed(1);
+}
+
+/**
+ * Atualiza os valores dos KPIs na interface
+ */
+function atualizarKPIs() {
+    document.getElementById('valor-critica').textContent = calcularLixeirasCriticas();
+    document.getElementById('valor-preenchimento').textContent = calcularPreenchimentoMedio() + '%';
+    document.getElementById('valor-combustivel').textContent = calcularEconomiaCombustivel() + 'L';
+    document.getElementById('valor-emissoes').textContent = calcularEmissoesEvitadas() + 'kg';
+}
+
+// ============================================
+// SEÇÃO 5: FUNÇÕES DE SIMULAÇÃO IoT
+// ============================================
+
+/**
+ * Simula a atualização de dados IoT em tempo real
+ * A cada 5 segundos, os níveis de preenchimento são atualizados
+ * com pequenas variações aleatórias
+ */
+function simularDadosIoT() {
+    setInterval(() => {
+        lixeiras.forEach(lixeira => {
+            // Simula variação aleatória no nível de preenchimento
+            const variacao = (Math.random() - 0.4) * 5;
+            lixeira.fillLevel = Math.min(100, Math.max(0, lixeira.fillLevel + variacao));
+
+            // Atualiza o status baseado no nível de preenchimento
+            if (lixeira.fillLevel > 80) {
+                lixeira.status = 'critical';
+            } else if (lixeira.fillLevel > 60) {
+                lixeira.status = 'warning';
+            } else {
+                lixeira.status = 'empty';
+            }
+
+            lixeira.lastUpdated = 'agora';
+        });
+
+        // Atualiza a interface
+        atualizarKPIs();
+        atualizarListaLixeiras();
+        atualizarMarcadores();
+        
+        // Se uma lixeira está selecionada, atualiza seus detalhes
+        if (lixeiraSelecionada) {
+            exibirDetalhesSelecionada(lixeiraSelecionada);
+        }
+    }, 5000); // Atualiza a cada 5 segundos
+}
+
+// ============================================
+// SEÇÃO 6: FUNÇÕES DE MAPA (LEAFLET)
+// ============================================
+
+/**
+ * Inicializa o mapa principal com Leaflet
+ * Cria o mapa, adiciona a camada de tiles e os marcadores das lixeiras
+ */
+function inicializarMapa() {
+    // Coordenadas centrais de Maringá
+    const coordenadas = [-23.4208, -51.9331];
+
+    // Cria o mapa com Leaflet
+    mapaMaringa = L.map('map-container').setView(coordenadas, 13);
+
+    // Adiciona a camada de tiles do OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(mapaMaringa);
+
+    // Adiciona marcadores para cada lixeira
+    lixeiras.forEach((lixeira, index) => {
+        adicionarMarcador(lixeira, index);
+    });
+}
+
+/**
+ * Adiciona um marcador no mapa para uma lixeira
+ * @param {object} lixeira - Dados da lixeira
+ * @param {number} index - Índice da lixeira
+ */
+function adicionarMarcador(lixeira, index) {
+    // Define a cor do marcador baseado no status
+    let cor;
+    if (lixeira.status === 'critical') {
+        cor = '#f44336'; // Vermelho
+    } else if (lixeira.status === 'warning') {
+        cor = '#ff9800'; // Laranja
+    } else {
+        cor = '#4caf50'; // Verde
+    }
+
+    // Cria o marcador com ícone customizado
+    const marcador = L.circleMarker([lixeira.lat, lixeira.lng], {
+        radius: 12,
+        fillColor: cor,
+        color: '#fff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    })
+    .bindPopup(`<strong>${lixeira.nome}</strong><br>Preenchimento: ${lixeira.fillLevel.toFixed(0)}%`)
+    .addTo(mapaMaringa);
+
+    // Adiciona evento de clique no marcador
+    marcador.on('click', function() {
+        lixeiraSelecionada = lixeira;
+        exibirDetalhesSelecionada(lixeira);
+    });
+
+    marcadores.push(marcador);
+}
+
+/**
+ * Atualiza os marcadores do mapa com as cores corretas
+ * Chamada quando os dados IoT são atualizados
+ */
+function atualizarMarcadores() {
+    // Remove todos os marcadores antigos
+    marcadores.forEach(m => mapaMaringa.removeLayer(m));
+    marcadores = [];
+
+    // Adiciona novos marcadores com cores atualizadas
+    lixeiras.forEach((lixeira, index) => {
+        adicionarMarcador(lixeira, index);
+    });
+}
+
+/**
+ * Inicializa o mapa de rotas
+ * Exibe a rota selecionada com marcadores numerados e linha de conexão
+ */
+function inicializarMapaRota() {
+    // Coordenadas centrais de Maringá
+    const coordenadas = [-23.4208, -51.9331];
+
+    // Cria o mapa com Leaflet
+    mapaRota = L.map('map-route-container').setView(coordenadas, 13);
+
+    // Adiciona a camada de tiles do OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(mapaRota);
+
+    // Exibe a primeira rota por padrão
+    if (rotas.length > 0) {
+        exibirRotaNoMapa(rotas[0]);
+    }
+}
+
+/**
+ * Exibe uma rota específica no mapa de rotas
+ * @param {object} rota - Dados da rota a ser exibida
+ */
+function exibirRotaNoMapa(rota) {
+    rotaSelecionada = rota;
+
+    // Remove marcadores antigos do mapa de rota
+    mapaRota.eachLayer(layer => {
+        if (layer instanceof L.CircleMarker || layer instanceof L.Polyline) {
+            mapaRota.removeLayer(layer);
+        }
+    });
+
+    // Array para armazenar coordenadas da rota
+    const coordenadas = [];
+
+    // Adiciona marcadores para cada parada da rota
+    rota.paradas.forEach((binId, index) => {
+        const lixeira = lixeiras.find(l => l.id === binId);
+        if (lixeira) {
+            coordenadas.push([lixeira.lat, lixeira.lng]);
+
+            // Cria marcador numerado
+            L.circleMarker([lixeira.lat, lixeira.lng], {
+                radius: 14,
+                fillColor: '#2196f3',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            })
+            .bindPopup(`<strong>${index + 1}. ${lixeira.nome}</strong>`)
+            .addTo(mapaRota);
+        }
+    });
+
+    // Desenha linha conectando os pontos da rota
+    if (coordenadas.length > 1) {
+        L.polyline(coordenadas, {
+            color: '#2196f3',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '5, 5'
+        }).addTo(mapaRota);
+    }
+
+    // Ajusta o zoom para mostrar toda a rota
+    if (coordenadas.length > 0) {
+        const bounds = L.latLngBounds(coordenadas);
+        mapaRota.fitBounds(bounds, { padding: [50, 50] });
+    }
+}
+
+// ============================================
+// SEÇÃO 7: FUNÇÕES DE INTERFACE - DETALHES
+// ============================================
+
+/**
+ * Exibe os detalhes de uma lixeira selecionada
+ * @param {object} lixeira - Dados da lixeira
+ */
+function exibirDetalhesSelecionada(lixeira) {
+    // Define a cor da barra de progresso baseado no status
+    let classeProgresso = '';
+    if (lixeira.status === 'critical') {
+        classeProgresso = 'critical';
+    } else if (lixeira.status === 'warning') {
+        classeProgresso = 'warning';
+    }
+
+    // Monta o HTML com os detalhes
+    const html = `
+        <div class="detalhe-item">
+            <div class="detalhe-label">Nome</div>
+            <div class="detalhe-valor">${lixeira.nome}</div>
+        </div>
+        <div class="detalhe-item">
+            <div class="detalhe-label">Nível de Preenchimento</div>
+            <div class="detalhe-valor">${lixeira.fillLevel.toFixed(0)}%</div>
+            <div class="progress-bar">
+                <div class="progress-fill ${classeProgresso}" style="width: ${lixeira.fillLevel}%"></div>
+            </div>
+        </div>
+        <div class="detalhe-item">
+            <div class="detalhe-label">Status</div>
+            <div class="detalhe-valor">${getStatusLabel(lixeira.status)}</div>
+        </div>
+        <div class="detalhe-item">
+            <div class="detalhe-label">Última Atualização</div>
+            <div class="detalhe-valor">${lixeira.lastUpdated}</div>
+        </div>
+        <div class="detalhe-item">
+            <div class="detalhe-label">Coordenadas</div>
+            <div class="detalhe-valor">${lixeira.lat.toFixed(4)}, ${lixeira.lng.toFixed(4)}</div>
+        </div>
+    `;
+
+    document.getElementById('detalhes-conteudo').innerHTML = html;
+}
+
+/**
+ * Retorna o rótulo de status em português
+ * @param {string} status - Status da lixeira
+ * @returns {string} Rótulo do status
+ */
+function getStatusLabel(status) {
+    const labels = {
+        'critical': '🔴 Crítico',
+        'warning': '🟡 Atenção',
+        'empty': '🟢 Vazio'
+    };
+    return labels[status] || status;
+}
+
+// ============================================
+// SEÇÃO 8: FUNÇÕES DE INTERFACE - LISTAS
+// ============================================
+
+/**
+ * Atualiza a lista de todas as lixeiras na interface
+ */
+function atualizarListaLixeiras() {
+    const container = document.getElementById('lista-lixeiras');
+    
+    // Monta o HTML com cada lixeira
+    const html = lixeiras.map(lixeira => `
+        <div class="lixeira-item ${lixeira.status}" onclick="selecionarLixeira('${lixeira.id}')">
+            <div class="lixeira-nome">${lixeira.nome}</div>
+            <div class="lixeira-nivel">Preenchimento: ${lixeira.fillLevel.toFixed(0)}%</div>
+            <div class="progress-bar">
+                <div class="progress-fill ${lixeira.status === 'critical' ? 'critical' : lixeira.status === 'warning' ? 'warning' : ''}" 
+                     style="width: ${lixeira.fillLevel}%"></div>
+            </div>
+        </div>
+    `).join('');
+
+    container.innerHTML = html;
+}
+
+/**
+ * Seleciona uma lixeira ao clicar na lista
+ * @param {string} id - ID da lixeira
+ */
+function selecionarLixeira(id) {
+    const lixeira = lixeiras.find(l => l.id === id);
+    if (lixeira) {
+        lixeiraSelecionada = lixeira;
+        exibirDetalhesSelecionada(lixeira);
+    }
+}
+
+/**
+ * Atualiza a lista de rotas na interface
+ */
+function atualizarListaRotas() {
+    const container = document.getElementById('lista-rotas');
+    
+    // Monta o HTML com cada rota
+    const html = rotas.map(rota => `
+        <div class="rota-item" onclick="selecionarRota('${rota.id}')">
+            <div class="rota-nome">${rota.nome}</div>
+            <div class="rota-info">⏱️ ${rota.tempoEstimado}</div>
+            <div class="rota-info">📏 ${rota.distancia}</div>
+            <div class="rota-info">⛽ ${rota.combustivel}</div>
+        </div>
+    `).join('');
+
+    container.innerHTML = html;
+}
+
+/**
+ * Seleciona uma rota ao clicar na lista
+ * @param {string} id - ID da rota
+ */
+function selecionarRota(id) {
+    const rota = rotas.find(r => r.id === id);
+    if (rota) {
+        exibirRotaNoMapa(rota);
+    }
+}
+
+// ============================================
+// SEÇÃO 9: FUNÇÕES DE GRÁFICOS
+// ============================================
+
+/**
+ * Inicializa o gráfico de tendência de preenchimento
+ * Usa a biblioteca Chart.js para criar um gráfico de linha
+ */
+function inicializarGrafico() {
+    const ctx = document.getElementById('myChart').getContext('2d');
+
+    graficoTendencia = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: tendenciaPreenchimento.map(d => d.hora),
+            datasets: [{
+                label: 'Preenchimento Médio (%)',
+                data: tendenciaPreenchimento.map(d => d.preenchimento),
+                borderColor: '#2c5e2e',
+                backgroundColor: 'rgba(44, 94, 46, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 6,
+                pointBackgroundColor: '#2c5e2e',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: '#2c5e2e'
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        color: '#666',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#666',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ============================================
+// SEÇÃO 10: FUNÇÃO DE INICIALIZAÇÃO
+// ============================================
+
+/**
+ * Função principal que inicializa toda a aplicação
+ * Chamada quando o DOM está completamente carregado
+ */
+function inicializarAplicacao() {
+    console.log('🚀 Inicializando EcoRoute & SmartBin...');
+  
+
+    // 1. Atualiza os KPIs iniciais
+    atualizarKPIs();
+
+    // 2. Atualiza a lista de lixeiras
+    atualizarListaLixeiras();
+
+    // 3. Atualiza a lista de rotas
+    atualizarListaRotas();
+
+    // 4. Inicializa o mapa principal
+    inicializarMapa();
+
+    // 5. Seleciona a primeira lixeira por padrão
+    if (lixeiras.length > 0) {
+        lixeiraSelecionada = lixeiras[0];
+        exibirDetalhesSelecionada(lixeiras[0]);
+    }
+
+    // 6. Inicializa o gráfico de tendências
+    inicializarGrafico();
+
+    // 7. Inicia a simulação de dados IoT
+    simularDadosIoT();
+
+    console.log('✅ Aplicação inicializada com sucesso!');
+}
+
+// ============================================
+// SEÇÃO 11: INICIALIZAÇÃO DO DOCUMENTO
+// ============================================
+
+/**
+ * Aguarda o carregamento completo do DOM antes de executar
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    inicializarAplicacao();
+});
+
+
+    
+
+
+</script>
+
+    
+</body>
+</html>
