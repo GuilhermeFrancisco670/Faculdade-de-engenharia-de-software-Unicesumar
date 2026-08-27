@@ -1,2 +1,2 @@
 # Faculdade-de-engenharia-de-software-Unicesumar
-Repositório para as atividades e trabalhos da faculdade de 2025 - 20##
+Repositório para organizar atividades, trabalhos e exercícios da faculdade do curso de Engenharia de Software de 2025 - 20## .
