@@ -1,0 +1,96 @@
+classDiagram
+    class Usuario {
+        <<abstract>>
+        -Long id
+        -String nome
+        -String email
+        -String telefone
+        -Boolean ativo
+        +obterPermissoes() String[*]
+        +descreverAtuacao() String
+    }
+
+    class Doador {
+        +obterPermissoes() String[*]
+        +descreverAtuacao() String
+    }
+
+    class Voluntario {
+        +obterPermissoes() String[*]
+        +descreverAtuacao() String
+    }
+
+    class Instituicao {
+        -String nomeFantasia
+        -String endereco
+        +obterPermissoes() String[*]
+        +descreverAtuacao() String
+    }
+
+    class Administrador {
+        +obterPermissoes() String[*]
+        +descreverAtuacao() String
+    }
+
+    class Categoria {
+        -Long id
+        -String nome
+        -String descricao
+    }
+
+    class Item {
+        -Long id
+        -String nome
+        -String descricao
+        -String condicao
+        -Integer quantidade
+    }
+
+    class Doacao {
+        -Long id
+        -String status
+        -LocalDate dataCadastro
+        +alterarStatus(String novoStatus) void
+        +estaDisponivel() Boolean
+    }
+
+    class Solicitacao {
+        -Long id
+        -Integer quantidade
+        -String justificativa
+        -String status
+        -LocalDate dataSolicitacao
+        +aprovar() void
+        +recusar() void
+    }
+
+    class Entrega {
+        -Long id
+        -LocalDate dataEntrega
+        -Integer quantidadeEntregue
+        -String observacoes
+    }
+
+    class HistoricoStatus {
+        -Long id
+        -String statusAnterior
+        -String statusNovo
+        -LocalDateTime alteradoEm
+        -String observacao
+    }
+
+    Usuario <|-- Doador : herança
+    Usuario <|-- Voluntario : herança
+    Usuario <|-- Instituicao : herança
+    Usuario <|-- Administrador : herança
+    Usuario "1" --> "0..*" Doacao : cadastra
+    Categoria "1" --> "0..*" Item : classifica
+    Item "1" --> "0..*" Doacao : identifica
+    Instituicao "1" --> "0..*" Solicitacao : registra
+    Doacao "1" --> "0..*" Solicitacao : recebe
+    Solicitacao "1" *-- "0..1" Entrega : gera
+    Doacao "1" *-- "0..*" HistoricoStatus : compõe
+    Usuario "1" --> "0..*" HistoricoStatus : altera
+
+    note for Usuario "Polimorfismo: cada subtipo sobrescreve obterPermissoes() e descreverAtuacao() com @Override."
+    note for Doacao "Composição 1:N: o histórico pertence ao ciclo de vida da doação."

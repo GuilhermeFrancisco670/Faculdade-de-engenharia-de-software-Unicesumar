@@ -1,0 +1,76 @@
+erDiagram
+    USUARIO {
+        bigint id PK
+        varchar nome
+        varchar email UK
+        varchar telefone
+        varchar tipo_usuario
+        boolean ativo
+        timestamp criado_em
+    }
+
+    CATEGORIA {
+        bigint id PK
+        varchar nome UK
+        varchar descricao
+    }
+
+    ITEM {
+        bigint id PK
+        bigint categoria_id FK
+        varchar nome
+        text descricao
+        varchar condicao
+        int quantidade
+        boolean ativo
+    }
+
+    DOACAO {
+        bigint id PK
+        bigint doador_id FK
+        bigint item_id FK
+        varchar status
+        date data_cadastro
+        timestamp atualizado_em
+    }
+
+    SOLICITACAO {
+        bigint id PK
+        bigint instituicao_id FK
+        bigint doacao_id FK
+        int quantidade
+        text justificativa
+        varchar status
+        date data_solicitacao
+        bigint aprovado_por FK
+    }
+
+    ENTREGA {
+        bigint id PK
+        bigint solicitacao_id FK
+        bigint responsavel_id FK
+        date data_entrega
+        int quantidade_entregue
+        text observacoes
+    }
+
+    HISTORICO_STATUS {
+        bigint id PK
+        bigint doacao_id FK
+        bigint usuario_id FK
+        varchar status_anterior
+        varchar status_novo
+        timestamp alterado_em
+        text observacao
+    }
+
+    CATEGORIA ||--o{ ITEM : classifica
+    USUARIO ||--o{ DOACAO : cadastra
+    ITEM ||--o{ DOACAO : identifica
+    USUARIO ||--o{ SOLICITACAO : "instituicao registra"
+    DOACAO ||--o{ SOLICITACAO : "recebe pedidos"
+    USUARIO ||--o{ SOLICITACAO : aprova
+    SOLICITACAO ||--o| ENTREGA : gera
+    USUARIO ||--o{ ENTREGA : responsavel
+    DOACAO ||--o{ HISTORICO_STATUS : possui
+    USUARIO ||--o{ HISTORICO_STATUS : altera
