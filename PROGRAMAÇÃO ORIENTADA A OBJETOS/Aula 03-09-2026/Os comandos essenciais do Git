@@ -1,0 +1,13 @@
+Os comandos essenciais do Git ajudam você a criar, modificar e enviar códigos para um repositório com facilidade. Você pode consultar a Documentação Oficial do Git para ver todos os detalhes técnicos.
+
+Iniciação e Configuração
+
+git init: Cria um novo repositório na pasta atual.
+git clone <url>: Copia um repositório existente da internet para o seu computador.
+git config: Define o seu nome e o seu e-mail para identificar os seus salvamentos.
+
+Fluxo de Trabalho Básico
+
+git status: Mostra quais arquivos foram alterados ou estão prontos para salvar.
+git add <arquivo>: Prepara o arquivo alterado para ser salvo.
+git commit -m "mensagem": Salva oficialmente as alterações preparadas no seu histórico local.
