@@ -1,0 +1,6 @@
+{
+  "name": "Justa Medieval - Jogo IPC Java e Guia PDF",
+  "description": "Desenvolvimento do Trabalho 02 de Sistemas Operacionais: Jogo da Justa Medieval em Java com comunicação por Sockets, memória compartilhada, exclusão mútua (Tanenbaum), simulador visual e gerador de relatório em PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
