@@ -1,0 +1,6 @@
+1. ajustar propriedades dos campos
+2. criar os relacionamentos 
+3. povoar as tabelas( inserir os dados)
+4. criar select simples e criar select envolvendo 2 ou mais tabelas
+5. criar trigger
+6. criar estored procedure
