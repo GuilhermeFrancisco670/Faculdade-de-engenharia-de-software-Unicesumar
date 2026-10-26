@@ -1,0 +1,198 @@
+-- =============================================================================
+-- DISCIPLINA: BANCO DE DADOS
+-- ATIVIDADE PRÁTICA - 2º BIMESTRE - TRABALHO 1
+-- ARQUIVO: t1_2bim.sql
+-- BANCO DE DADOS: onibusescola
+-- =============================================================================
+
+DROP DATABASE IF EXISTS onibusescola;
+
+CREATE DATABASE onibusescola
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_general_ci;
+
+USE onibusescola;
+
+-- -----------------------------------------------------------------------------
+-- PARTE 1: EVOLUÇÃO ESTRUTURAL E CARGA DE DADOS DE TESTE
+-- -----------------------------------------------------------------------------
+
+-- 1.1. Auto-relacionamento na tabela responsavel (Base para a vw_03_self)
+ALTER TABLE responsavel
+  ADD COLUMN id_responsavel_principal INT NULL,
+  ADD CONSTRAINT fk_responsavel_principal
+      FOREIGN KEY (id_responsavel_principal) REFERENCES responsavel (id_responsavel)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+
+-- 1.2. Alinhamento de dados para o SELF JOIN:
+-- Define 'Marcia Ferreira' (id 1) como responsável principal de 'Joao Batista Reis' (id 2)
+UPDATE responsavel
+   SET id_responsavel_principal = 1
+ WHERE id_responsavel = 2;
+
+-- 1.3. Dados "sem par" para atender vw_01_left e vw_02_sem_par (Aluno sem rota)
+-- 'Diego Alves' é inserido como aluno, mas NÃO recebe registro na tabela aluno_rota
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+VALUES ('Diego Alves', '2015-05-10', 'MANHA', 1, 1, 4);
+
+-- 1.4. Dados para atender vw_04_full (Registros sem par em ambos os lados)
+-- Inserção de um motorista sem veículo vinculado
+INSERT INTO motorista (nome, cnh, telefone, id_onibus)
+VALUES ('Carlos Silveira', '01234567899', '44992220099', NULL);
+
+-- Inserção de um ônibus reserva que não possui nenhum motorista associado
+INSERT INTO onibus (placa, capacidade)
+VALUES ('DDD4E56', 28);
+
+-- 1.5. Dados para atender vw_09_ranking (Criação de empate real no mesmo turno)
+-- Rota matutina adicional saindo exatamente às 06:30:00 (mesmo horário da Rota 1)
+INSERT INTO rota (descricao, turno, horario_saida, id_motorista, id_escola)
+VALUES ('Jardim Alvorada -> EM Padre Manoel', 'MANHA', '06:30:00', 1, 1);
+
+
+-- -----------------------------------------------------------------------------
+-- PARTE 2: CRIAÇÃO DAS 10 VIEWS OBRIGATÓRIAS
+-- -----------------------------------------------------------------------------
+
+-- ITEM 01: vw_01_left
+-- Exibe todos os alunos e seus vínculos de rota, retornando NULL para os sem rota
+CREATE OR REPLACE VIEW vw_01_left AS
+SELECT
+    a.id_aluno,
+    a.nome AS aluno,
+    a.turno,
+    ar.id_rota,
+    ar.ordem_embarque
+FROM aluno a
+LEFT JOIN aluno_rota ar ON a.id_aluno = ar.id_aluno;
+
+
+-- ITEM 02: vw_02_sem_par
+-- Anti-join: isola os alunos que não possuem vínculo em nenhuma rota
+CREATE OR REPLACE VIEW vw_02_sem_par AS
+SELECT
+    a.id_aluno,
+    a.nome AS aluno,
+    a.turno
+FROM aluno a
+LEFT JOIN aluno_rota ar ON a.id_aluno = ar.id_aluno
+WHERE ar.id_aluno IS NULL;
+
+
+-- ITEM 03: vw_03_self
+-- Auto-relacionamento para exibir o responsável e seu respectivo responsável principal
+CREATE OR REPLACE VIEW vw_03_self AS
+SELECT
+    r.id_responsavel,
+    r.nome                   AS responsavel,
+    r.numero_celular,
+    p.id_responsavel         AS id_principal,
+    p.nome                   AS responsavel_principal,
+    p.numero_celular         AS celular_principal
+FROM responsavel r
+JOIN responsavel p ON r.id_responsavel_principal = p.id_responsavel;
+
+
+-- ITEM 04: vw_04_full
+-- Emulação do FULL OUTER JOIN no MySQL utilizando LEFT JOIN + UNION + RIGHT JOIN
+CREATE OR REPLACE VIEW vw_04_full AS
+SELECT
+    m.id_motorista,
+    m.nome AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade
+FROM motorista m
+LEFT JOIN onibus o ON m.id_onibus = o.id_onibus
+UNION
+SELECT
+    m.id_motorista,
+    m.nome AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade
+FROM motorista m
+RIGHT JOIN onibus o ON m.id_onibus = o.id_onibus;
+
+
+-- ITEM 05: vw_05_having
+-- Agrupamento com filtro por grupo: responsáveis que possuem mais de 1 filho
+CREATE OR REPLACE VIEW vw_05_having AS
+SELECT
+    r.id_responsavel,
+    r.nome AS responsavel,
+    COUNT(a.id_aluno) AS total_filhos
+FROM responsavel r
+JOIN aluno a ON a.id_responsavel = r.id_responsavel
+GROUP BY r.id_responsavel, r.nome
+HAVING COUNT(a.id_aluno) > 1;
+
+
+-- ITEM 06: vw_06_top3
+-- Ordenação e limitação estrita: os 3 alunos com maior idade (nascimento mais antigo)
+CREATE OR REPLACE VIEW vw_06_top3 AS
+SELECT
+    id_aluno,
+    nome,
+    data_nascimento
+FROM aluno
+WHERE data_nascimento IS NOT NULL
+ORDER BY data_nascimento ASC
+LIMIT 3;
+
+
+-- ITEM 07: vw_07_subconsulta
+-- Subconsulta escalar no WHERE: veículos com capacidade acima da média da frota
+CREATE OR REPLACE VIEW vw_07_subconsulta AS
+SELECT
+    id_onibus,
+    placa,
+    capacidade
+FROM onibus
+WHERE capacidade > (SELECT AVG(capacidade) FROM onibus);
+
+
+-- ITEM 08: vw_08_cte
+-- Common Table Expression (WITH ... AS): prepara a contagem e junta com a rota
+CREATE OR REPLACE VIEW vw_08_cte AS
+WITH total_alunos_rota AS (
+    SELECT
+        id_rota,
+        COUNT(id_aluno) AS total_embarcados
+    FROM aluno_rota
+    GROUP BY id_rota
+)
+SELECT
+    r.id_rota,
+    r.descricao AS rota,
+    r.turno,
+    t.total_embarcados
+FROM rota r
+JOIN total_alunos_rota t ON r.id_rota = t.id_rota;
+
+
+-- ITEM 09: vw_09_ranking
+-- Função de janela com partição e empate: classificação dos horários de saída por turno
+CREATE OR REPLACE VIEW vw_09_ranking AS
+SELECT
+    id_rota,
+    descricao,
+    turno,
+    horario_saida,
+    RANK() OVER (
+        PARTITION BY turno 
+        ORDER BY horario_saida ASC
+    ) AS ranking_horario
+FROM rota;
+
+
+-- ITEM 10: vw_10_vizinho
+-- Funções analíticas de navegação (LAG e LEAD): rota anterior e seguinte por horário
+CREATE OR REPLACE VIEW vw_10_vizinho AS
+SELECT
+    id_rota,
+    descricao,
+    horario_saida,
+    LAG(horario_saida)  OVER (ORDER BY horario_saida ASC) AS horario_anterior,
+    LEAD(horario_saida) OVER (ORDER BY horario_saida ASC) AS proximo_horario
+FROM rota;

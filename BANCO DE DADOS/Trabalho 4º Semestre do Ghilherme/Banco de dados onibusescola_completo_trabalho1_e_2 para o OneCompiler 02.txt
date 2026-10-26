@@ -1,0 +1,437 @@
+-- Desativa a checagem de chaves para permitir recriar tudo do zero sem erros ao clicar em "Run"
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- Exclui views e tabelas caso já existam de execuções anteriores
+DROP VIEW IF EXISTS vw_ocupacao_rota;
+DROP VIEW IF EXISTS vw_ficha_embarque;
+DROP VIEW IF EXISTS vw_alunos_sem_rota;
+
+DROP TABLE IF EXISTS alerta_rota;
+DROP TABLE IF EXISTS log_matricula;
+DROP TABLE IF EXISTS aluno_rota;
+DROP TABLE IF EXISTS aluno;
+DROP TABLE IF EXISTS rota;
+DROP TABLE IF EXISTS motorista;
+DROP TABLE IF EXISTS onibus;
+DROP TABLE IF EXISTS responsavel;
+DROP TABLE IF EXISTS escola;
+DROP TABLE IF EXISTS endereco;
+
+-- Reativa a checagem de chaves estrangeiras
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- ============================================================================
+-- PARTE 1: CRIAÇÃO DAS TABELAS (DDL) - APLICANDO 1FN, 2FN E 3FN
+-- ============================================================================
+
+-- Tabela de endereços (separada para atender a 3FN e não duplicar dados de ruas)
+CREATE TABLE endereco ( 
+  id_endereco  INT          AUTO_INCREMENT PRIMARY KEY, -- Chave primária que numera sozinha
+  cep          CHAR(8)      NOT NULL,                   -- CEP com tamanho fixo de 8 caracteres
+  rua          VARCHAR(100) NOT NULL,                   -- Nome da rua
+  numero_casa  VARCHAR(10)  NOT NULL,                   -- Número da casa
+  bairro       VARCHAR(60)  NULL,                       -- Bairro
+  cidade       VARCHAR(60)  NOT NULL,                   -- Nome da cidade
+  uf           CHAR(2)      NOT NULL,                   -- Estado (PR, SP, etc.)
+  descricao    VARCHAR(150) NULL                        -- Ponto de referência
+);
+
+-- Tabela com os dados das escolas
+CREATE TABLE escola (
+  id_escola        INT          AUTO_INCREMENT PRIMARY KEY,
+  nome             VARCHAR(100) NOT NULL,
+  id_endereco      INT          NOT NULL,
+  quantidade_aluno INT          NOT NULL DEFAULT 0,     -- Total mantido automaticamente pela trigger
+  turno            VARCHAR(10)  NOT NULL,
+  horario_entrada  TIME         NOT NULL,               -- Horário de entrada
+  horario_saida    TIME         NOT NULL,               -- Horário de saída
+  publico          CHAR(1)      NOT NULL DEFAULT 'S',
+  CONSTRAINT chk_escola_turno   CHECK (turno IN ('MANHA','TARDE','NOITE','INTEGRAL')),
+  CONSTRAINT chk_escola_publico CHECK (publico IN ('S','N')),
+  CONSTRAINT chk_escola_qtd     CHECK (quantidade_aluno >= 0)
+);
+
+-- Tabela de responsáveis pelos alunos
+CREATE TABLE responsavel (
+  id_responsavel  INT          AUTO_INCREMENT PRIMARY KEY,
+  nome            VARCHAR(100) NOT NULL,
+  numero_celular  VARCHAR(15)  NOT NULL,
+  id_endereco     INT          NOT NULL,
+  horario_em_casa TIME         NULL,
+  CONSTRAINT uq_responsavel_celular UNIQUE (numero_celular) -- Celular único
+);
+
+-- Tabela de veículos da frota escolar
+CREATE TABLE onibus (
+  id_onibus  INT     AUTO_INCREMENT PRIMARY KEY,
+  placa      CHAR(7) NOT NULL,
+  capacidade INT     NOT NULL,
+  CONSTRAINT uq_onibus_placa UNIQUE (placa),            -- Não permite placas repetidas
+  CONSTRAINT chk_onibus_cap  CHECK (capacidade > 0)     -- Capacidade deve ser maior que zero
+);
+
+-- Tabela de motoristas vinculados aos veículos
+CREATE TABLE motorista (
+  id_motorista INT          AUTO_INCREMENT PRIMARY KEY,
+  nome         VARCHAR(100) NOT NULL,
+  cnh          CHAR(11)     NOT NULL,
+  telefone     VARCHAR(15)  NULL,
+  id_onibus    INT          NULL,
+  CONSTRAINT uq_motorista_cnh UNIQUE (cnh)
+);
+
+-- Tabela de rotas do transporte escolar
+CREATE TABLE rota (
+  id_rota       INT          AUTO_INCREMENT PRIMARY KEY,
+  descricao     VARCHAR(150) NOT NULL,
+  turno         VARCHAR(10)  NOT NULL,
+  horario_saida TIME         NOT NULL,
+  id_motorista  INT          NOT NULL,
+  id_escola     INT          NOT NULL,
+  CONSTRAINT chk_rota_turno CHECK (turno IN ('MANHA','TARDE','NOITE'))
+);
+
+-- Tabela principal de alunos
+CREATE TABLE aluno (
+  id_aluno        INT          AUTO_INCREMENT PRIMARY KEY,
+  nome            VARCHAR(100) NOT NULL,
+  data_nascimento DATE         NULL,
+  turno           VARCHAR(10)  NOT NULL,
+  id_escola       INT          NOT NULL,
+  id_responsavel  INT          NOT NULL,
+  id_endereco     INT          NOT NULL,
+  CONSTRAINT chk_aluno_turno CHECK (turno IN ('MANHA','TARDE','NOITE'))
+);
+
+-- Tabela associativa N:N (Muitos alunos para Muitas rotas - atende a 2FN)
+CREATE TABLE aluno_rota (
+  id_aluno       INT NOT NULL,
+  id_rota        INT NOT NULL,
+  ordem_embarque INT NULL,
+  PRIMARY KEY (id_aluno, id_rota) -- Chave primária composta
+);
+
+-- Tabela de auditoria para registrar as matrículas
+CREATE TABLE log_matricula (
+  id_log     INT         AUTO_INCREMENT PRIMARY KEY,
+  id_aluno   INT         NOT NULL,
+  id_escola  INT         NOT NULL,
+  acao       VARCHAR(20) NOT NULL,
+  data_hora  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela do Trabalho 2: Guarda os efeitos persistentes (alertas gerados)
+CREATE TABLE alerta_rota (
+  id_alerta       INT AUTO_INCREMENT PRIMARY KEY,
+  id_rota         INT NOT NULL,
+  nivel_alerta    VARCHAR(20)  NOT NULL,
+  ocupacao_atual  INT          NOT NULL,
+  capacidade      INT          NOT NULL,
+  percentual      DECIMAL(5,2) NOT NULL,
+  origem          VARCHAR(10)  NOT NULL, -- 'MANUAL' ou 'TRIGGER'
+  data_hora       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_alerta_nivel  CHECK (nivel_alerta IN ('NORMAL','QUASE_LOTADO','LOTADO')),
+  CONSTRAINT chk_alerta_origem CHECK (origem IN ('MANUAL','TRIGGER'))
+);
+
+
+-- ============================================================================
+-- PARTE 2: CHAVES ESTRANGEIRAS COM ALTER TABLE (Slides 30 a 33)
+-- ============================================================================
+
+ALTER TABLE escola 
+  ADD CONSTRAINT fk_escola_endereco FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco);
+
+ALTER TABLE responsavel 
+  ADD CONSTRAINT fk_responsavel_endereco FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco);
+
+ALTER TABLE motorista 
+  ADD CONSTRAINT fk_motorista_onibus FOREIGN KEY (id_onibus) REFERENCES onibus (id_onibus) ON DELETE SET NULL;
+
+ALTER TABLE rota 
+  ADD CONSTRAINT fk_rota_motorista FOREIGN KEY (id_motorista) REFERENCES motorista (id_motorista),
+  ADD CONSTRAINT fk_rota_escola FOREIGN KEY (id_escola) REFERENCES escola (id_escola);
+
+ALTER TABLE aluno 
+  ADD CONSTRAINT fk_aluno_escola FOREIGN KEY (id_escola) REFERENCES escola (id_escola),
+  ADD CONSTRAINT fk_aluno_responsavel FOREIGN KEY (id_responsavel) REFERENCES responsavel (id_responsavel),
+  ADD CONSTRAINT fk_aluno_endereco FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco);
+
+ALTER TABLE aluno_rota 
+  ADD CONSTRAINT fk_ar_aluno FOREIGN KEY (id_aluno) REFERENCES aluno (id_aluno) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_ar_rota FOREIGN KEY (id_rota) REFERENCES rota (id_rota) ON DELETE CASCADE;
+
+ALTER TABLE alerta_rota 
+  ADD CONSTRAINT fk_alerta_rota FOREIGN KEY (id_rota) REFERENCES rota (id_rota) ON DELETE CASCADE;
+
+
+-- ============================================================================
+-- PARTE 3: INSERÇÃO DOS REGISTROS (DML - INSERT) (Slide 36)
+-- ============================================================================
+
+INSERT INTO endereco (cep, rua, numero_casa, bairro, cidade, uf, descricao) VALUES
+('87020150','Avenida Brasil','1200','Centro','Maringa','PR','Escola municipal'),
+('87030220','Rua Neo Alves Martins','340','Zona 04','Maringa','PR','Escola estadual'),
+('87045110','Avenida Colombo','980','Zona 07','Maringa','PR','Colegio particular'),
+('87050310','Rua Piratininga','45','Zona 05','Maringa','PR','Casa de esquina'),
+('87050320','Rua Piratininga','88','Zona 05','Maringa','PR','Sobrado azul'),
+('87060400','Rua Pioneiro Jose Ferreira','512','Zona 06','Maringa','PR','Portao branco'),
+('87070500','Rua Guaira','77','Zona 08','Maringa','PR','Apartamento 12'),
+('87080600','Rua Bento Munhoz','230','Vila Morangueira','Maringa','PR','Casa dos fundos');
+
+INSERT INTO escola (nome, id_endereco, turno, horario_entrada, horario_saida, publico) VALUES
+('EM Padre Manoel', 1, 'MANHA',    '07:30:00','11:45:00','S'),
+('CE Silvio Barros', 2, 'TARDE',    '13:00:00','17:20:00','S'),
+('Colegio Horizonte',3, 'INTEGRAL','07:45:00','17:00:00','N');
+
+INSERT INTO responsavel (nome, numero_celular, id_endereco, horario_em_casa) VALUES
+('Marcia Ferreira',  '44991110001', 4, '18:00:00'),
+('Joao Batista Reis','44991110002', 5, '17:30:00'),
+('Cleide Souza',     '44991110003', 6, '19:00:00'),
+('Rodrigo Almeida',  '44991110004', 7, '18:30:00'),
+('Patricia Nunes',   '44991110005', 8, '16:45:00');
+
+INSERT INTO onibus (placa, capacidade) VALUES
+('AAA1B23', 30),
+('BBB2C34', 24),
+('CCC3D45', 40);
+
+INSERT INTO motorista (nome, cnh, telefone, id_onibus) VALUES
+('Antonio Carlos Lima','01234567890','44992220001', 1),
+('Sebastiao Ribeiro',  '01234567891','44992220002', 2),
+('Marta Oliveira',     '01234567892','44992220003', 3);
+
+INSERT INTO rota (descricao, turno, horario_saida, id_motorista, id_escola) VALUES
+('Zona 05 -> EM Padre Manoel',        'MANHA','06:30:00', 1, 1),
+('Zona 06/07 -> CE Silvio Barros',    'TARDE','12:00:00', 2, 2),
+('Vila Morangueira -> Col. Horizonte','MANHA','06:50:00', 3, 3);
+
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco) VALUES
+('Lucas Ferreira',  '2014-03-12','MANHA', 1, 1, 4),
+('Ana Ferreira',    '2016-07-25','MANHA', 1, 1, 4),
+('Pedro Reis',      '2013-11-02','MANHA', 1, 2, 5),
+('Julia Souza',     '2012-05-19','TARDE', 2, 3, 6),
+('Gabriel Souza',   '2015-01-30','TARDE', 2, 3, 6),
+('Bianca Almeida',  '2013-09-08','TARDE', 2, 4, 7),
+('Enzo Nunes',      '2011-04-14','MANHA', 3, 5, 8),
+('Helena Nunes',    '2017-02-27','MANHA', 3, 5, 8);
+
+INSERT INTO aluno_rota (id_aluno, id_rota, ordem_embarque) VALUES
+(1,1,1),(2,1,2),(3,1,3),
+(4,2,1),(5,2,2),(6,2,3),
+(7,3,1),(8,3,2);
+
+-- Atualiza a quantidade inicial de alunos em cada escola
+UPDATE escola e
+   SET e.quantidade_aluno = (SELECT COUNT(*) FROM aluno a WHERE a.id_escola = e.id_escola);
+
+
+-- ============================================================================
+-- PARTE 4: VIEWS (TRABALHO 2 - MÍNIMO DE 3 VIEWS) (Slides 59 a 63)
+-- ============================================================================
+
+-- VIEW 1: vw_ocupacao_rota
+-- Reúne rota, motorista, ônibus e calcula vagas e percentual de ocupação
+CREATE VIEW vw_ocupacao_rota AS
+SELECT
+    r.id_rota,
+    r.descricao                                           AS rota,
+    r.turno,
+    m.nome                                                AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade,
+    COUNT(ar.id_aluno)                                    AS alunos_embarcados,
+    (o.capacidade - COUNT(ar.id_aluno))                   AS vagas_disponiveis,
+    ROUND((COUNT(ar.id_aluno) / o.capacidade) * 100, 2)   AS percentual_ocupacao
+FROM rota r
+JOIN motorista m ON m.id_motorista = r.id_motorista
+JOIN onibus o    ON o.id_onibus    = m.id_onibus
+LEFT JOIN aluno_rota ar ON ar.id_rota = r.id_rota
+GROUP BY r.id_rota, r.descricao, r.turno, m.nome, o.id_onibus, o.placa, o.capacidade;
+
+-- VIEW 2: vw_ficha_embarque
+-- Reúne as 5 tabelas para facilitar a consulta diária do motorista
+CREATE VIEW vw_ficha_embarque AS
+SELECT
+    ar.id_rota,
+    ro.descricao                                          AS rota,
+    ro.horario_saida,
+    ar.ordem_embarque,
+    a.id_aluno,
+    a.nome                                                AS aluno,
+    CONCAT(en.rua, ', ', en.numero_casa, IFNULL(CONCAT(' - ', en.bairro), '')) AS endereco_embarque,
+    en.cep,
+    resp.nome                                             AS responsavel,
+    resp.numero_celular,
+    esc.nome                                              AS escola
+FROM aluno_rota ar
+JOIN rota ro          ON ro.id_rota        = ar.id_rota
+JOIN aluno a          ON a.id_aluno        = ar.id_aluno
+JOIN endereco en      ON en.id_endereco    = a.id_endereco
+JOIN responsavel resp ON resp.id_responsavel = a.id_responsavel
+JOIN escola esc       ON esc.id_escola     = a.id_escola;
+
+-- VIEW 3: vw_alunos_sem_rota
+-- Mostra os alunos cadastrados que ainda não foram colocados em nenhum ônibus
+CREATE VIEW vw_alunos_sem_rota AS
+SELECT
+    a.id_aluno,
+    a.nome              AS aluno,
+    a.turno,
+    esc.nome            AS escola,
+    resp.nome           AS responsavel,
+    resp.numero_celular
+FROM aluno a
+JOIN escola esc       ON esc.id_escola      = a.id_escola
+JOIN responsavel resp ON resp.id_responsavel = a.id_responsavel
+LEFT JOIN aluno_rota ar ON ar.id_aluno = a.id_aluno
+WHERE ar.id_aluno IS NULL;
+
+
+-- ============================================================================
+-- PARTE 5: PROCEDURES E TRIGGERS (TRABALHO 1 E 2 INTEGRADOS)
+-- ============================================================================
+
+DELIMITER $$
+
+-- TRIGGER 1 (Trabalho 1 - Auditoria e Atualização Automática)
+-- Ao inserir um aluno, atualiza o contador na escola e grava um registro de log
+CREATE TRIGGER trg_aluno_depois_inserir
+AFTER INSERT ON aluno
+FOR EACH ROW
+BEGIN
+  -- Atualiza o total de alunos na tabela escola
+  UPDATE escola
+     SET quantidade_aluno = quantidade_aluno + 1
+   WHERE id_escola = NEW.id_escola;
+
+  -- Grava o histórico de matrícula
+  INSERT INTO log_matricula (id_aluno, id_escola, acao)
+  VALUES (NEW.id_aluno, NEW.id_escola, 'MATRICULA');
+END$$
+
+
+-- STORED PROCEDURE 2 (Trabalho 2: Procedure chamada pela Trigger)
+-- Lê a View vw_ocupacao_rota e grava um efeito persistente em alerta_rota
+CREATE PROCEDURE sp_verificar_ocupacao_rota (IN p_id_rota INT)
+BEGIN
+  DECLARE v_ocupados   INT;
+  DECLARE v_capacidade INT;
+  DECLARE v_percentual DECIMAL(5,2);
+  DECLARE v_nivel      VARCHAR(20);
+
+  -- Busca as informações diretamente da VIEW
+  SELECT alunos_embarcados, capacidade, percentual_ocupacao
+    INTO v_ocupados, v_capacidade, v_percentual
+    FROM vw_ocupacao_rota
+   WHERE id_rota = p_id_rota;
+
+  -- Define o nível de alerta
+  IF v_percentual >= 100 THEN
+    SET v_nivel = 'LOTADO';
+  ELSEIF v_percentual >= 80 THEN
+    SET v_nivel = 'QUASE_LOTADO';
+  ELSE
+    SET v_nivel = 'NORMAL';
+  END IF;
+
+  -- Efeito persistente: Insere o registro de alerta
+  INSERT INTO alerta_rota (id_rota, nivel_alerta, ocupacao_atual, capacidade, percentual, origem)
+  VALUES (p_id_rota, v_nivel, v_ocupados, v_capacidade, v_percentual, 'TRIGGER');
+END$$
+
+
+-- TRIGGER 2 (Trabalho 2: Integração Evento -> Trigger -> Procedure -> View -> Tabela)
+-- Dispara após um aluno ser colocado em uma rota e aciona a Procedure 2
+CREATE TRIGGER trg_aluno_rota_ai_alerta
+AFTER INSERT ON aluno_rota
+FOR EACH ROW
+BEGIN
+  -- Aciona a procedure para recalcular e gerar o alerta
+  CALL sp_verificar_ocupacao_rota(NEW.id_rota);
+END$$
+
+
+-- STORED PROCEDURE 1 (Trabalho 2: Chamada sob demanda pelo usuário)
+-- Percorre a View vw_ocupacao_rota e grava alertas manuais para rotas acima do limite
+CREATE PROCEDURE sp_registrar_status_ocupacao (IN p_limite_alerta DECIMAL(5,2))
+BEGIN
+  DECLARE v_fim        INT DEFAULT 0;
+  DECLARE v_id_rota    INT;
+  DECLARE v_ocupados   INT;
+  DECLARE v_capacidade INT;
+  DECLARE v_percentual DECIMAL(5,2);
+  DECLARE v_nivel      VARCHAR(20);
+
+  -- Declaração do Cursor sobre a View
+  DECLARE cur_rotas CURSOR FOR
+    SELECT id_rota, alunos_embarcados, capacidade, percentual_ocupacao
+    FROM vw_ocupacao_rota;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_fim = 1;
+
+  OPEN cur_rotas;
+
+  loop_rotas: LOOP
+    FETCH cur_rotas INTO v_id_rota, v_ocupados, v_capacidade, v_percentual;
+    IF v_fim = 1 THEN
+      LEAVE loop_rotas;
+    END IF;
+
+    -- Se o percentual atingir o limite estipulado pelo usuário
+    IF v_percentual >= p_limite_alerta THEN
+      IF v_percentual >= 100 THEN
+        SET v_nivel = 'LOTADO';
+      ELSE
+        SET v_nivel = 'QUASE_LOTADO';
+      END IF;
+
+      -- Grava o alerta na tabela
+      INSERT INTO alerta_rota (id_rota, nivel_alerta, ocupacao_atual, capacidade, percentual, origem)
+      VALUES (v_id_rota, v_nivel, v_ocupados, v_capacidade, v_percentual, 'MANUAL');
+    END IF;
+  END LOOP;
+
+  CLOSE cur_rotas;
+END$$
+
+DELIMITER ;
+
+
+-- ============================================================================
+-- PARTE 6: CONSULTAS E TESTES PRÁTICOS (Exigidos nos Slides 15, 40 e 58)
+-- ============================================================================
+
+-- CONSULTA COM JOIN 1: Aluno + Escola + Responsável (Slide 40)
+SELECT a.nome AS aluno, e.nome AS escola, r.nome AS responsavel, r.numero_celular
+FROM aluno a
+INNER JOIN escola e ON e.id_escola = a.id_escola
+INNER JOIN responsavel r ON r.id_responsavel = a.id_responsavel;
+
+-- CONSULTA COM JOIN 2: Rota + Horário + Motorista + Placa (Slide 40)
+SELECT r.descricao AS rota, r.horario_saida, m.nome AS motorista, o.placa
+FROM rota r
+INNER JOIN motorista m ON m.id_motorista = r.id_motorista
+INNER JOIN onibus o ON o.id_onibus = m.id_onibus;
+
+-- VISUALIZAÇÃO DAS 3 VIEWS CRIADAS (Slide 60)
+SELECT * FROM vw_ocupacao_rota;
+SELECT * FROM vw_ficha_embarque;
+SELECT * FROM vw_alunos_sem_rota;
+
+-- TESTE DA PROCEDURE 1 (Manual): Gera alertas para rotas com mais de 10% de ocupação
+CALL sp_registrar_status_ocupacao(10);
+SELECT * FROM alerta_rota WHERE origem = 'MANUAL';
+
+-- TESTE DA TRIGGER + PROCEDURE 2: Insere um novo aluno e vincula à rota 1
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+VALUES ('Aluno Teste OneCompiler', '2015-08-20', 'MANHA', 1, 1, 4);
+
+-- Ao inserir na tabela associativa, a trigger dispara e executa a Procedure 2 automaticamente
+INSERT INTO aluno_rota (id_aluno, id_rota, ordem_embarque)
+VALUES (9, 1, 4);
+
+-- Confere o efeito persistente gerado de forma automática pela Trigger
+SELECT * FROM alerta_rota WHERE origem = 'TRIGGER';

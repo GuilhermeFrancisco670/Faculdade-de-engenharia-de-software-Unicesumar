@@ -1,0 +1,917 @@
+DROP DATABASE IF EXISTS onibusescola;
+
+CREATE DATABASE onibusescola
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_general_ci;
+
+USE onibusescola;
+
+CREATE TABLE endereco (
+  id_endereco  INT           AUTO_INCREMENT PRIMARY KEY,
+  cep          CHAR(8)       NOT NULL,
+  rua          VARCHAR(100)  NOT NULL,
+  numero_casa  VARCHAR(10)   NOT NULL,
+  bairro       VARCHAR(60)   NULL,
+  cidade       VARCHAR(60)   NOT NULL,
+  uf           CHAR(2)       NOT NULL,
+  descricao    VARCHAR(150)  NULL,
+  CONSTRAINT chk_endereco_cep CHECK (CHAR_LENGTH(cep) = 8)
+) ENGINE = InnoDB;
+
+CREATE TABLE escola (
+  id_escola        INT          AUTO_INCREMENT PRIMARY KEY,
+  nome             VARCHAR(100) NOT NULL,
+  id_endereco      INT          NOT NULL,
+  quantidade_aluno INT          NOT NULL DEFAULT 0,
+  turno            ENUM('MANHA','TARDE','NOITE','INTEGRAL') NOT NULL,
+  horario_entrada  TIME         NOT NULL,
+  horario_saida    TIME         NOT NULL,
+  publico          CHAR(1)      NOT NULL DEFAULT 'S',
+  CONSTRAINT chk_escola_publico  CHECK (publico IN ('S','N')),
+  CONSTRAINT chk_escola_qtd      CHECK (quantidade_aluno >= 0),
+  CONSTRAINT chk_escola_horario  CHECK (horario_saida > horario_entrada)
+) ENGINE = InnoDB;
+
+CREATE TABLE responsavel (
+  id_responsavel  INT          AUTO_INCREMENT PRIMARY KEY,
+  nome            VARCHAR(100) NOT NULL,
+  numero_celular  VARCHAR(15)  NOT NULL,
+  id_endereco     INT          NOT NULL,
+  horario_em_casa TIME         NULL,
+  CONSTRAINT uq_responsavel_celular UNIQUE (numero_celular)
+) ENGINE = InnoDB;
+
+CREATE TABLE onibus (
+  id_onibus  INT     AUTO_INCREMENT PRIMARY KEY,
+  placa      CHAR(7) NOT NULL,
+  capacidade INT     NOT NULL,
+  CONSTRAINT uq_onibus_placa UNIQUE (placa),
+  CONSTRAINT chk_onibus_cap  CHECK (capacidade > 0)
+) ENGINE = InnoDB;
+
+CREATE TABLE motorista (
+  id_motorista INT          AUTO_INCREMENT PRIMARY KEY,
+  nome         VARCHAR(100) NOT NULL,
+  cnh          CHAR(11)     NOT NULL,
+  telefone     VARCHAR(15)  NULL,
+  id_onibus    INT          NULL,
+  CONSTRAINT uq_motorista_cnh UNIQUE (cnh)
+) ENGINE = InnoDB;
+
+CREATE TABLE rota (
+  id_rota       INT          AUTO_INCREMENT PRIMARY KEY,
+  descricao     VARCHAR(150) NOT NULL,
+  turno         ENUM('MANHA','TARDE','NOITE') NOT NULL,
+  horario_saida TIME         NOT NULL,
+  id_motorista  INT          NOT NULL,
+  id_escola     INT          NOT NULL
+) ENGINE = InnoDB;
+
+CREATE TABLE aluno (
+  id_aluno        INT          AUTO_INCREMENT PRIMARY KEY,
+  nome            VARCHAR(100) NOT NULL,
+  data_nascimento DATE         NULL,
+  turno           ENUM('MANHA','TARDE','NOITE') NOT NULL,
+  id_escola       INT          NOT NULL,
+  id_responsavel  INT          NOT NULL,
+  id_endereco     INT          NOT NULL
+) ENGINE = InnoDB;
+
+CREATE TABLE aluno_rota (
+  id_aluno       INT NOT NULL,
+  id_rota        INT NOT NULL,
+  ordem_embarque INT NULL,
+  PRIMARY KEY (id_aluno, id_rota)
+) ENGINE = InnoDB;
+
+CREATE TABLE log_matricula (
+  id_log     INT          AUTO_INCREMENT PRIMARY KEY,
+  id_aluno   INT          NOT NULL,
+  id_escola  INT          NOT NULL,
+  acao       VARCHAR(20)  NOT NULL,
+  data_hora  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE = InnoDB;
+
+ALTER TABLE escola
+  ADD CONSTRAINT fk_escola_endereco
+      FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco)
+      ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE responsavel
+  ADD CONSTRAINT fk_responsavel_endereco
+      FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco)
+      ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE motorista
+  ADD CONSTRAINT fk_motorista_onibus
+      FOREIGN KEY (id_onibus) REFERENCES onibus (id_onibus)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+
+ALTER TABLE rota
+  ADD CONSTRAINT fk_rota_motorista
+      FOREIGN KEY (id_motorista) REFERENCES motorista (id_motorista)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+  ADD CONSTRAINT fk_rota_escola
+      FOREIGN KEY (id_escola) REFERENCES escola (id_escola)
+      ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE aluno
+  ADD CONSTRAINT fk_aluno_escola
+      FOREIGN KEY (id_escola) REFERENCES escola (id_escola)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+  ADD CONSTRAINT fk_aluno_responsavel
+      FOREIGN KEY (id_responsavel) REFERENCES responsavel (id_responsavel)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+  ADD CONSTRAINT fk_aluno_endereco
+      FOREIGN KEY (id_endereco) REFERENCES endereco (id_endereco)
+      ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE aluno_rota
+  ADD CONSTRAINT fk_alunorota_aluno
+      FOREIGN KEY (id_aluno) REFERENCES aluno (id_aluno)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+  ADD CONSTRAINT fk_alunorota_rota
+      FOREIGN KEY (id_rota) REFERENCES rota (id_rota)
+      ON UPDATE CASCADE ON DELETE CASCADE;
+
+CREATE INDEX idx_aluno_nome  ON aluno (nome);
+CREATE INDEX idx_aluno_turno ON aluno (turno);
+CREATE INDEX idx_rota_turno  ON rota  (turno);
+
+INSERT INTO endereco (cep, rua, numero_casa, bairro, cidade, uf, descricao) VALUES
+('87020150','Avenida Brasil','1200','Centro','Maringa','PR','Escola municipal'),
+('87030220','Rua Neo Alves Martins','340','Zona 04','Maringa','PR','Escola estadual'),
+('87045110','Avenida Colombo','980','Zona 07','Maringa','PR','Colegio particular'),
+('87050310','Rua Piratininga','45','Zona 05','Maringa','PR','Casa de esquina'),
+('87050320','Rua Piratininga','88','Zona 05','Maringa','PR','Sobrado azul'),
+('87060400','Rua Pioneiro Jose Ferreira','512','Zona 06','Maringa','PR','Portao branco'),
+('87070500','Rua Guaira','77','Zona 08','Maringa','PR','Apartamento 12'),
+('87080600','Rua Bento Munhoz','230','Vila Morangueira','Maringa','PR','Casa dos fundos');
+
+INSERT INTO escola (nome, id_endereco, turno, horario_entrada, horario_saida, publico) VALUES
+('EM Padre Manoel',  1, 'MANHA',    '07:30:00','11:45:00','S'),
+('CE Silvio Barros', 2, 'TARDE',    '13:00:00','17:20:00','S'),
+('Colegio Horizonte',3, 'INTEGRAL', '07:45:00','17:00:00','N');
+
+INSERT INTO responsavel (nome, numero_celular, id_endereco, horario_em_casa) VALUES
+('Marcia Ferreira',  '44991110001', 4, '18:00:00'),
+('Joao Batista Reis','44991110002', 5, '17:30:00'),
+('Cleide Souza',     '44991110003', 6, '19:00:00'),
+('Rodrigo Almeida',  '44991110004', 7, '18:30:00'),
+('Patricia Nunes',   '44991110005', 8, '16:45:00');
+
+INSERT INTO onibus (placa, capacidade) VALUES
+('AAA1B23', 30),
+('BBB2C34', 24),
+('CCC3D45', 40);
+
+INSERT INTO motorista (nome, cnh, telefone, id_onibus) VALUES
+('Antonio Carlos Lima','01234567890','44992220001', 1),
+('Sebastiao Ribeiro',  '01234567891','44992220002', 2),
+('Marta Oliveira',     '01234567892','44992220003', 3);
+
+INSERT INTO rota (descricao, turno, horario_saida, id_motorista, id_escola) VALUES
+('Zona 05 -> EM Padre Manoel',        'MANHA','06:30:00', 1, 1),
+('Zona 06/07 -> CE Silvio Barros',    'TARDE','12:00:00', 2, 2),
+('Vila Morangueira -> Col. Horizonte','MANHA','06:50:00', 3, 3);
+
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco) VALUES
+('Lucas Ferreira',  '2014-03-12','MANHA', 1, 1, 4),
+('Ana Ferreira',    '2016-07-25','MANHA', 1, 1, 4),
+('Pedro Reis',      '2013-11-02','MANHA', 1, 2, 5),
+('Julia Souza',     '2012-05-19','TARDE', 2, 3, 6),
+('Gabriel Souza',   '2015-01-30','TARDE', 2, 3, 6),
+('Bianca Almeida',  '2013-09-08','TARDE', 2, 4, 7),
+('Enzo Nunes',      '2011-04-14','MANHA', 3, 5, 8),
+('Helena Nunes',    '2017-02-27','MANHA', 3, 5, 8);
+
+INSERT INTO aluno_rota (id_aluno, id_rota, ordem_embarque) VALUES
+(1,1,1),(2,1,2),(3,1,3),
+(4,2,1),(5,2,2),(6,2,3),
+(7,3,1),(8,3,2);
+
+CREATE TABLE alerta_rota (
+  id_alerta       INT AUTO_INCREMENT PRIMARY KEY,
+  id_rota         INT NOT NULL,
+  nivel_alerta    ENUM('NORMAL','QUASE_LOTADO','LOTADO') NOT NULL,
+  ocupacao_atual  INT NOT NULL,
+  capacidade      INT NOT NULL,
+  percentual      DECIMAL(5,2) NOT NULL,
+  origem          ENUM('MANUAL','TRIGGER') NOT NULL,
+  data_hora       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_alerta_rota
+      FOREIGN KEY (id_rota) REFERENCES rota (id_rota)
+      ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE VIEW vw_ocupacao_rota AS
+SELECT
+    r.id_rota,
+    r.descricao                                        AS rota,
+    r.turno,
+    m.nome                                             AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade,
+    COUNT(ar.id_aluno)                                 AS alunos_embarcados,
+    (o.capacidade - COUNT(ar.id_aluno))                AS vagas_disponiveis,
+    ROUND(COUNT(ar.id_aluno) / o.capacidade * 100, 2)  AS percentual_ocupacao
+FROM   rota r
+JOIN   motorista  m ON m.id_motorista = r.id_motorista
+JOIN   onibus     o ON o.id_onibus    = m.id_onibus
+LEFT   JOIN aluno_rota ar ON ar.id_rota = r.id_rota
+GROUP  BY r.id_rota, r.descricao, r.turno, m.nome, o.id_onibus, o.placa, o.capacidade;
+
+CREATE VIEW vw_ficha_embarque AS
+SELECT
+    ar.id_rota,
+    ro.descricao                                         AS rota,
+    ro.horario_saida,
+    ar.ordem_embarque,
+    a.id_aluno,
+    a.nome                                               AS aluno,
+    CONCAT(en.rua, ', ', en.numero_casa,
+           IFNULL(CONCAT(' - ', en.bairro), ''))         AS endereco_embarque,
+    en.cep,
+    resp.nome                                            AS responsavel,
+    resp.numero_celular,
+    esc.nome                                             AS escola
+FROM   aluno_rota ar
+JOIN   rota        ro   ON ro.id_rota         = ar.id_rota
+JOIN   aluno       a    ON a.id_aluno         = ar.id_aluno
+JOIN   endereco    en   ON en.id_endereco     = a.id_endereco
+JOIN   responsavel resp ON resp.id_responsavel = a.id_responsavel
+JOIN   escola      esc  ON esc.id_escola      = a.id_escola;
+
+CREATE VIEW vw_alunos_sem_rota AS
+SELECT
+    a.id_aluno,
+    a.nome              AS aluno,
+    a.turno,
+    esc.nome            AS escola,
+    resp.nome           AS responsavel,
+    resp.numero_celular
+FROM   aluno a
+JOIN   escola      esc  ON esc.id_escola       = a.id_escola
+JOIN   responsavel resp ON resp.id_responsavel = a.id_responsavel
+LEFT   JOIN aluno_rota ar ON ar.id_aluno = a.id_aluno
+WHERE  ar.id_aluno IS NULL;
+
+DELIMITER $$
+
+CREATE TRIGGER trg_aluno_ai
+AFTER INSERT ON aluno
+FOR EACH ROW
+BEGIN
+  UPDATE escola
+     SET quantidade_aluno = quantidade_aluno + 1
+   WHERE id_escola = NEW.id_escola;
+
+  INSERT INTO log_matricula (id_aluno, id_escola, acao)
+  VALUES (NEW.id_aluno, NEW.id_escola, 'MATRICULA');
+END$$
+
+CREATE TRIGGER trg_aluno_ad
+AFTER DELETE ON aluno
+FOR EACH ROW
+BEGIN
+  UPDATE escola
+     SET quantidade_aluno = quantidade_aluno - 1
+   WHERE id_escola = OLD.id_escola;
+
+  INSERT INTO log_matricula (id_aluno, id_escola, acao)
+  VALUES (OLD.id_aluno, OLD.id_escola, 'CANCELAMENTO');
+END$$
+
+CREATE TRIGGER trg_aluno_au
+AFTER UPDATE ON aluno
+FOR EACH ROW
+BEGIN
+  IF NEW.id_escola <> OLD.id_escola THEN
+    UPDATE escola SET quantidade_aluno = quantidade_aluno - 1
+      WHERE id_escola = OLD.id_escola;
+    UPDATE escola SET quantidade_aluno = quantidade_aluno + 1
+      WHERE id_escola = NEW.id_escola;
+
+    INSERT INTO log_matricula (id_aluno, id_escola, acao)
+    VALUES (NEW.id_aluno, NEW.id_escola, 'TRANSFERENCIA');
+  END IF;
+END$$
+
+CREATE TRIGGER trg_aluno_rota_bi
+BEFORE INSERT ON aluno_rota
+FOR EACH ROW
+BEGIN
+  DECLARE v_capacidade INT DEFAULT 0;
+  DECLARE v_ocupados   INT DEFAULT 0;
+
+  SELECT IFNULL(o.capacidade, 0) INTO v_capacidade
+  FROM   rota r
+  JOIN   motorista m ON m.id_motorista = r.id_motorista
+  LEFT   JOIN onibus o ON o.id_onibus  = m.id_onibus
+  WHERE  r.id_rota = NEW.id_rota;
+
+  SELECT COUNT(*) INTO v_ocupados
+  FROM   aluno_rota
+  WHERE  id_rota = NEW.id_rota;
+
+  IF v_ocupados >= v_capacidade THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Onibus lotado: capacidade da rota atingida.';
+  END IF;
+END$$
+
+DELIMITER ;
+
+UPDATE escola e
+   SET e.quantidade_aluno = (SELECT COUNT(*) FROM aluno a
+                              WHERE a.id_escola = e.id_escola);
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_matricular_aluno (
+  IN  p_nome           VARCHAR(100),
+  IN  p_nascimento     DATE,
+  IN  p_turno          VARCHAR(10),
+  IN  p_id_escola      INT,
+  IN  p_id_responsavel INT,
+  IN  p_id_endereco    INT,
+  IN  p_id_rota        INT,
+  OUT p_id_aluno       INT
+)
+BEGIN
+  DECLARE v_ordem INT;
+
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  IF NOT EXISTS (SELECT 1 FROM escola WHERE id_escola = p_id_escola) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Escola inexistente.';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM responsavel
+                  WHERE id_responsavel = p_id_responsavel) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Responsavel inexistente.';
+  END IF;
+
+  IF p_id_rota IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM rota WHERE id_rota = p_id_rota) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rota inexistente.';
+  END IF;
+
+  START TRANSACTION;
+
+    INSERT INTO aluno (nome, data_nascimento, turno,
+                       id_escola, id_responsavel, id_endereco)
+    VALUES (p_nome, p_nascimento, p_turno,
+            p_id_escola, p_id_responsavel, p_id_endereco);
+
+    SET p_id_aluno = LAST_INSERT_ID();
+
+    IF p_id_rota IS NOT NULL THEN
+      SELECT IFNULL(MAX(ordem_embarque), 0) + 1
+        INTO v_ordem
+        FROM aluno_rota
+       WHERE id_rota = p_id_rota;
+
+      INSERT INTO aluno_rota (id_aluno, id_rota, ordem_embarque)
+      VALUES (p_id_aluno, p_id_rota, v_ordem);
+    END IF;
+
+  COMMIT;
+END$$
+
+CREATE PROCEDURE sp_lista_embarque (IN p_id_rota INT)
+BEGIN
+  SELECT ar.ordem_embarque                    AS ordem,
+         a.nome                               AS aluno,
+         CONCAT(en.rua,', ',en.numero_casa)   AS endereco,
+         en.bairro,
+         r.nome                               AS responsavel,
+         r.numero_celular,
+         e.nome                               AS escola,
+         ro.horario_saida
+  FROM   aluno_rota ar
+  JOIN   rota  ro      ON ro.id_rota       = ar.id_rota
+  JOIN   aluno a       ON a.id_aluno       = ar.id_aluno
+  JOIN   endereco en   ON en.id_endereco   = a.id_endereco
+  JOIN   responsavel r ON r.id_responsavel = a.id_responsavel
+  JOIN   escola e      ON e.id_escola      = a.id_escola
+  WHERE  ar.id_rota = p_id_rota
+  ORDER  BY ar.ordem_embarque;
+END$$
+
+CREATE PROCEDURE sp_trocar_onibus (
+  IN p_id_motorista INT,
+  IN p_id_onibus    INT
+)
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM onibus WHERE id_onibus = p_id_onibus) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Onibus inexistente.';
+  END IF;
+
+  UPDATE motorista
+     SET id_onibus = p_id_onibus
+   WHERE id_motorista = p_id_motorista;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_verificar_ocupacao_rota (IN p_id_rota INT)
+BEGIN
+  DECLARE v_ocupados   INT;
+  DECLARE v_capacidade INT;
+  DECLARE v_percentual DECIMAL(5,2);
+  DECLARE v_nivel      VARCHAR(20);
+
+  SELECT alunos_embarcados, capacidade, percentual_ocupacao
+    INTO v_ocupados,       v_capacidade, v_percentual
+  FROM   vw_ocupacao_rota
+  WHERE  id_rota = p_id_rota;
+
+  IF v_percentual >= 100 THEN
+    SET v_nivel = 'LOTADO';
+  ELSEIF v_percentual >= 80 THEN
+    SET v_nivel = 'QUASE_LOTADO';
+  ELSE
+    SET v_nivel = 'NORMAL';
+  END IF;
+
+  INSERT INTO alerta_rota (id_rota, nivel_alerta, ocupacao_atual, capacidade, percentual, origem)
+  VALUES (p_id_rota, v_nivel, v_ocupados, v_capacidade, v_percentual, 'TRIGGER');
+END$$
+
+CREATE TRIGGER trg_aluno_rota_ai_alerta
+AFTER INSERT ON aluno_rota
+FOR EACH ROW
+BEGIN
+  CALL sp_verificar_ocupacao_rota(NEW.id_rota);
+END$$
+
+CREATE PROCEDURE sp_registrar_status_ocupacao (IN p_limite_alerta DECIMAL(5,2))
+BEGIN
+  DECLARE v_fim        INT DEFAULT 0;
+  DECLARE v_id_rota    INT;
+  DECLARE v_ocupados   INT;
+  DECLARE v_capacidade INT;
+  DECLARE v_percentual DECIMAL(5,2);
+  DECLARE v_nivel      VARCHAR(20);
+
+  DECLARE cur_rotas CURSOR FOR
+    SELECT id_rota, alunos_embarcados, capacidade, percentual_ocupacao
+    FROM   vw_ocupacao_rota;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_fim = 1;
+
+  OPEN cur_rotas;
+
+  loop_rotas: LOOP
+    FETCH cur_rotas INTO v_id_rota, v_ocupados, v_capacidade, v_percentual;
+    IF v_fim = 1 THEN
+      LEAVE loop_rotas;
+    END IF;
+
+    IF v_percentual >= p_limite_alerta THEN
+      IF v_percentual >= 100 THEN
+        SET v_nivel = 'LOTADO';
+      ELSE
+        SET v_nivel = 'QUASE_LOTADO';
+      END IF;
+
+      INSERT INTO alerta_rota (id_rota, nivel_alerta, ocupacao_atual, capacidade, percentual, origem)
+      VALUES (v_id_rota, v_nivel, v_ocupados, v_capacidade, v_percentual, 'MANUAL');
+    END IF;
+  END LOOP;
+
+  CLOSE cur_rotas;
+END$$
+
+DELIMITER ;
+
+SELECT nome, turno
+FROM   aluno
+WHERE  turno = 'MANHA'
+ORDER  BY nome;
+
+SELECT placa, capacidade
+FROM   onibus
+WHERE  capacidade >= 30;
+
+SELECT a.nome        AS aluno,
+       e.nome        AS escola,
+       r.nome        AS responsavel,
+       r.numero_celular
+FROM   aluno a
+JOIN   escola e      ON e.id_escola      = a.id_escola
+JOIN   responsavel r ON r.id_responsavel = a.id_responsavel
+ORDER  BY e.nome, a.nome;
+
+SELECT r.descricao AS rota,
+       r.horario_saida,
+       m.nome      AS motorista,
+       o.placa,
+       o.capacidade,
+       e.nome      AS escola
+FROM   rota r
+JOIN   motorista m ON m.id_motorista = r.id_motorista
+LEFT   JOIN onibus o ON o.id_onibus  = m.id_onibus
+JOIN   escola e    ON e.id_escola    = r.id_escola;
+
+SELECT r.descricao        AS rota,
+       o.placa,
+       o.capacidade,
+       COUNT(ar.id_aluno) AS alunos,
+       o.capacidade - COUNT(ar.id_aluno) AS vagas
+FROM   rota r
+JOIN   motorista m  ON m.id_motorista = r.id_motorista
+JOIN   onibus o     ON o.id_onibus    = m.id_onibus
+LEFT   JOIN aluno_rota ar ON ar.id_rota = r.id_rota
+GROUP  BY r.id_rota, r.descricao, o.placa, o.capacidade
+ORDER  BY vagas;
+
+SELECT r.nome                              AS responsavel,
+       COUNT(a.id_aluno)                   AS filhos,
+       GROUP_CONCAT(a.nome ORDER BY a.nome) AS nomes
+FROM   responsavel r
+JOIN   aluno a ON a.id_responsavel = r.id_responsavel
+GROUP  BY r.id_responsavel, r.nome
+HAVING COUNT(a.id_aluno) > 1;
+
+SELECT 'Tabelas'             AS objeto, COUNT(*) AS quantidade
+  FROM information_schema.tables
+ WHERE table_schema = 'onibusescola' AND table_type = 'BASE TABLE'
+UNION ALL
+SELECT 'Views',              COUNT(*) FROM information_schema.views
+ WHERE table_schema = 'onibusescola'
+UNION ALL
+SELECT 'Triggers',           COUNT(*) FROM information_schema.triggers
+ WHERE trigger_schema = 'onibusescola'
+UNION ALL
+SELECT 'Procedures',         COUNT(*) FROM information_schema.routines
+ WHERE routine_schema = 'onibusescola' AND routine_type = 'PROCEDURE'
+UNION ALL
+SELECT 'Chaves estrangeiras', COUNT(*) FROM information_schema.table_constraints
+ WHERE table_schema = 'onibusescola' AND constraint_type = 'FOREIGN KEY';
+
+SELECT 'endereco' AS tabela, COUNT(*) AS registros FROM endereco
+UNION ALL SELECT 'escola',        COUNT(*) FROM escola
+UNION ALL SELECT 'responsavel',   COUNT(*) FROM responsavel
+UNION ALL SELECT 'onibus',        COUNT(*) FROM onibus
+UNION ALL SELECT 'motorista',     COUNT(*) FROM motorista
+UNION ALL SELECT 'rota',          COUNT(*) FROM rota
+UNION ALL SELECT 'aluno',         COUNT(*) FROM aluno
+UNION ALL SELECT 'aluno_rota',    COUNT(*) FROM aluno_rota
+UNION ALL SELECT 'alerta_rota',   COUNT(*) FROM alerta_rota
+UNION ALL SELECT 'log_matricula', COUNT(*) FROM log_matricula;
+
+SELECT 'BANCO onibusescola CRIADO COM SUCESSO' AS status_final,
+       (SELECT COUNT(*) FROM aluno)      AS alunos,
+       (SELECT COUNT(*) FROM escola)     AS escolas,
+       (SELECT COUNT(*) FROM rota)       AS rotas,
+       (SELECT COUNT(*) FROM aluno_rota) AS vinculos_aluno_rota,
+       (SELECT COUNT(*) FROM information_schema.views
+         WHERE table_schema = 'onibusescola')                     AS qtd_views,
+       (SELECT COUNT(*) FROM information_schema.triggers
+         WHERE trigger_schema = 'onibusescola')                   AS qtd_triggers,
+       (SELECT COUNT(*) FROM information_schema.routines
+         WHERE routine_schema = 'onibusescola'
+           AND routine_type = 'PROCEDURE')                        AS qtd_procedures;
+
+-- =============================================================================
+-- VERSÃO REVISADA PARA VERTRIGO (MySQL 5.7) / phpMyAdmin
+-- Alterações: apenas as views vw_08_cte, vw_09_ranking e vw_10_vizinho foram
+-- reescritas, pois CTE (WITH) e funções de janela (RANK/LAG/LEAD) só existem
+-- no MySQL 8.0+. O código original dessas views está mantido em comentário.
+-- =============================================================================
+
+-- =============================================================================
+-- DISCIPLINA: BANCO DE DADOS
+-- ATIVIDADE PRÁTICA - 2º BIMESTRE - TRABALHO 1
+-- ARQUIVO: t1_2bim.sql
+-- BANCO DE DADOS: onibusescola
+-- =============================================================================
+
+USE onibusescola;
+
+-- -----------------------------------------------------------------------------
+-- PARTE 1: EVOLUÇÃO ESTRUTURAL E CARGA DE DADOS DE TESTE
+-- -----------------------------------------------------------------------------
+
+-- 1.1. Auto-relacionamento na tabela responsavel (Base para a vw_03_self)
+ALTER TABLE responsavel
+  ADD COLUMN id_responsavel_principal INT NULL,
+  ADD CONSTRAINT fk_responsavel_principal
+      FOREIGN KEY (id_responsavel_principal) REFERENCES responsavel (id_responsavel)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+
+-- 1.2. Alinhamento de dados para o SELF JOIN:
+-- Define 'Marcia Ferreira' (id 1) como responsável principal de 'Joao Batista Reis' (id 2)
+UPDATE responsavel
+   SET id_responsavel_principal = 1
+ WHERE id_responsavel = 2;
+
+-- 1.3. Dados "sem par" para atender vw_01_left e vw_02_sem_par (Aluno sem rota)
+-- 'Diego Alves' é inserido como aluno, mas NÃO recebe registro na tabela aluno_rota
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+VALUES ('Diego Alves', '2015-05-10', 'MANHA', 1, 1, 4);
+
+-- 1.4. Dados para atender vw_04_full (Registros sem par em ambos os lados)
+-- Inserção de um motorista sem veículo vinculado
+INSERT INTO motorista (nome, cnh, telefone, id_onibus)
+VALUES ('Carlos Silveira', '01234567899', '44992220099', NULL);
+
+-- Inserção de um ônibus reserva que não possui nenhum motorista associado
+INSERT INTO onibus (placa, capacidade)
+VALUES ('DDD4E56', 28);
+
+-- 1.5. Dados para atender vw_09_ranking (Criação de empate real no mesmo turno)
+-- Rota matutina adicional saindo exatamente às 06:30:00 (mesmo horário da Rota 1)
+INSERT INTO rota (descricao, turno, horario_saida, id_motorista, id_escola)
+VALUES ('Jardim Alvorada -> EM Padre Manoel', 'MANHA', '06:30:00', 1, 1);
+
+-- ITEM 01: vw_01_left
+CREATE OR REPLACE VIEW vw_01_left AS
+SELECT
+    a.id_aluno,
+    a.nome AS aluno,
+    a.turno,
+    ar.id_rota,
+    ar.ordem_embarque
+FROM aluno a
+LEFT JOIN aluno_rota ar ON a.id_aluno = ar.id_aluno;
+
+
+-- ITEM 02: vw_02_sem_par
+CREATE OR REPLACE VIEW vw_02_sem_par AS
+SELECT
+    a.id_aluno,
+    a.nome AS aluno,
+    a.turno
+FROM aluno a
+LEFT JOIN aluno_rota ar ON a.id_aluno = ar.id_aluno
+WHERE ar.id_aluno IS NULL;
+
+
+-- ITEM 03: vw_03_self
+CREATE OR REPLACE VIEW vw_03_self AS
+SELECT
+    r.id_responsavel,
+    r.nome                   AS responsavel,
+    r.numero_celular,
+    p.id_responsavel         AS id_principal,
+    p.nome                   AS responsavel_principal,
+    p.numero_celular         AS celular_principal
+FROM responsavel r
+JOIN responsavel p ON r.id_responsavel_principal = p.id_responsavel;
+
+
+-- ITEM 04: vw_04_full
+CREATE OR REPLACE VIEW vw_04_full AS
+SELECT
+    m.id_motorista,
+    m.nome AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade
+FROM motorista m
+LEFT JOIN onibus o ON m.id_onibus = o.id_onibus
+UNION
+SELECT
+    m.id_motorista,
+    m.nome AS motorista,
+    o.id_onibus,
+    o.placa,
+    o.capacidade
+FROM motorista m
+RIGHT JOIN onibus o ON m.id_onibus = o.id_onibus;
+
+
+-- ITEM 05: vw_05_having
+CREATE OR REPLACE VIEW vw_05_having AS
+SELECT
+    r.id_responsavel,
+    r.nome AS responsavel,
+    COUNT(a.id_aluno) AS total_filhos
+FROM responsavel r
+JOIN aluno a ON a.id_responsavel = r.id_responsavel
+GROUP BY r.id_responsavel, r.nome
+HAVING COUNT(a.id_aluno) > 1;
+
+
+-- ITEM 06: vw_06_top3
+CREATE OR REPLACE VIEW vw_06_top3 AS
+SELECT
+    id_aluno,
+    nome,
+    data_nascimento
+FROM aluno
+WHERE data_nascimento IS NOT NULL
+ORDER BY data_nascimento ASC
+LIMIT 3;
+
+
+-- ITEM 07: vw_07_subconsulta
+CREATE OR REPLACE VIEW vw_07_subconsulta AS
+SELECT
+    id_onibus,
+    placa,
+    capacidade
+FROM onibus
+WHERE capacidade > (SELECT AVG(capacidade) FROM onibus);
+
+
+-- ITEM 08: vw_08_cte
+CREATE OR REPLACE VIEW vw_08_cte AS
+SELECT
+    r.id_rota,
+    r.descricao AS rota,
+    r.turno,
+    COUNT(ar.id_aluno) AS total_embarcados
+FROM rota r
+JOIN aluno_rota ar ON ar.id_rota = r.id_rota
+GROUP BY r.id_rota, r.descricao, r.turno;
+
+-- ITEM 09: vw_09_ranking
+CREATE OR REPLACE VIEW vw_09_ranking AS
+SELECT
+    r.id_rota,
+    r.descricao,
+    r.turno,
+    r.horario_saida,
+    (SELECT COUNT(*) + 1
+       FROM rota r2
+      WHERE r2.turno = r.turno
+        AND r2.horario_saida < r.horario_saida) AS ranking_horario
+FROM rota r;
+
+-- ITEM 10: vw_10_vizinho
+CREATE OR REPLACE VIEW vw_10_vizinho AS
+SELECT
+    r.id_rota,
+    r.descricao,
+    r.horario_saida,
+    (SELECT r2.horario_saida
+       FROM rota r2
+      WHERE r2.horario_saida < r.horario_saida
+         OR (r2.horario_saida = r.horario_saida AND r2.id_rota < r.id_rota)
+      ORDER BY r2.horario_saida DESC, r2.id_rota DESC
+      LIMIT 1) AS horario_anterior,
+    (SELECT r2.horario_saida
+       FROM rota r2
+      WHERE r2.horario_saida > r.horario_saida
+         OR (r2.horario_saida = r.horario_saida AND r2.id_rota > r.id_rota)
+      ORDER BY r2.horario_saida ASC, r2.id_rota ASC
+      LIMIT 1) AS proximo_horario
+FROM rota r;
+
+/*
+SET @n = (SELECT MAX(CAST(cnh AS UNSIGNED)) FROM motorista);
+
+INSERT INTO motorista (nome, cnh, telefone, id_onibus)
+SELECT CONCAT('Motorista ', FLOOR(RAND() * 1000000)),
+       LPAD(@n := @n + 1, 11, '0'),
+       CONCAT('449', LPAD(FLOOR(RAND() * 100000000), 8, '0')),
+       id_onibus
+FROM motorista;
+*/
+
+-- =============================================================================
+-- ATIVIDADE: A CAÇA ÀS AGULHAS (Adaptado para onibusescola)
+-- =============================================================================
+USE onibusescola;
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 0: CONFERIR E PREPARAR AS "AGULHAS"
+-- -----------------------------------------------------------------------------
+-- Inserindo alunos específicos (as agulhas) para que a busca tenha um alvo certo.
+-- Usamos INSERT ... WHERE NOT EXISTS para evitar duplicatas se rodarmos duas vezes.
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+SELECT 'Ana Agulha', '2014-05-15', 'MANHA', 1, 1, 4
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM aluno WHERE nome = 'Ana Agulha');
+
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+SELECT 'Bruno Agulha', '2014-11-30', 'MANHA', 1, 2, 5
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM aluno WHERE nome = 'Bruno Agulha');
+
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+SELECT 'Carla Agulha', '2014-12-31', 'TARDE', 2, 3, 6
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM aluno WHERE nome = 'Carla Agulha');
+
+INSERT INTO aluno (nome, data_nascimento, turno, id_escola, id_responsavel, id_endereco)
+SELECT 'Diego Agulha', '2015-01-01', 'TARDE', 2, 4, 7
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM aluno WHERE nome = 'Diego Agulha');
+
+-- Criando a tabela para armazenar as medições (se ainda não existir)
+CREATE TABLE IF NOT EXISTS medicao (
+    id_medicao INT AUTO_INCREMENT PRIMARY KEY,
+    consulta VARCHAR(10) NOT NULL,
+    descricao VARCHAR(150) NOT NULL,
+    tempo_sem_indice DECIMAL(10,4) NULL,
+    rows_sem_indice INT NULL,
+    tempo_com_indice DECIMAL(10,4) NULL,
+    rows_com_indice INT NULL
+) ENGINE=InnoDB;
+
+TRUNCATE TABLE medicao; -- Limpa medições anteriores
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 1: MEDIR SEM ÍNDICE (Anotar Tempo e Rows)
+-- -----------------------------------------------------------------------------
+-- Observação: A tabela já possui 'idx_aluno_nome' e 'idx_aluno_turno'.
+-- Para simular "sem índice" na C1, usaremos IGNORE INDEX.
+-- Nas demais, os índices ainda não existem.
+
+-- C1: Busca por Nome (Igualdade)
+-- O banco vai ler a tabela inteira (ALL) porque o índice foi ignorado.
+SELECT * FROM aluno IGNORE INDEX (idx_aluno_nome) WHERE nome = 'Ana Agulha';
+-- Anote o tempo e o rows do EXPLAIN acima.
+
+-- C2: Busca por Data (Intervalo)
+-- O banco vai ler a tabela inteira (ALL) pois não há índice em data_nascimento.
+SELECT * FROM aluno WHERE data_nascimento BETWEEN '2014-01-01' AND '2014-12-31';
+-- Anote o tempo e o rows do EXPLAIN acima.
+
+-- C3: Busca Composta (Turno + Escola)
+-- O banco pode usar o idx_aluno_turno, mas ainda fará filtragem.
+SELECT * FROM aluno WHERE turno = 'MANHA' AND id_escola = 1;
+-- Anote o tempo e o rows do EXPLAIN acima.
+
+-- C4: Busca com Função (O Vilão)
+-- O banco é forçado a ler tudo (ALL) pois a função YEAR() quebra o uso do índice.
+SELECT * FROM aluno WHERE YEAR(data_nascimento) = 2014;
+-- Anote o tempo e o rows do EXPLAIN acima.
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 2: CRIAR OS ÍNDICES
+-- -----------------------------------------------------------------------------
+-- Índice para Data de Nascimento
+CREATE INDEX idx_aluno_nasc ON aluno (data_nascimento);
+
+-- Índice Composto para Turno + Escola (a ordem importa: primeiro turno, depois escola)
+CREATE INDEX idx_aluno_turno_escola ON aluno (turno, id_escola);
+
+-- (O idx_aluno_nome já existe, mas vamos garantir que ele exista para a C1)
+-- Se já existir, este comando dará erro, mas é só ignorar.
+-- CREATE INDEX idx_aluno_nome ON aluno (nome); 
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 3: MEDIR COM ÍNDICE (Repetir C1 a C4)
+-- -----------------------------------------------------------------------------
+
+-- C1: Busca por Nome (Agora usando o índice)
+SELECT * FROM aluno WHERE nome = 'Ana Agulha';
+-- O EXPLAIN deve mostrar type = ref e key = idx_aluno_nome. Rows = 1.
+
+-- C2: Busca por Data (Agora usando o índice)
+SELECT * FROM aluno WHERE data_nascimento BETWEEN '2014-01-01' AND '2014-12-31';
+-- O EXPLAIN deve mostrar type = range e key = idx_aluno_nasc.
+
+-- C3: Busca Composta (Agora usando o índice composto)
+SELECT * FROM aluno WHERE turno = 'MANHA' AND id_escola = 1;
+-- O EXPLAIN deve mostrar type = ref e key = idx_aluno_turno_escola.
+
+-- C4: Busca com Função (AINDA VAI FALHAR)
+SELECT * FROM aluno WHERE YEAR(data_nascimento) = 2014;
+-- O EXPLAIN VAI CONTINUAR MOSTRANDO ALL. O índice não funciona com função na coluna.
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 4: CONSERTAR A C4 (Criar a View)
+-- -----------------------------------------------------------------------------
+-- A solução é reescrever a consulta para usar BETWEEN, permitindo o uso do índice.
+CREATE OR REPLACE VIEW vw_aluno_nasc_2014 AS
+SELECT * FROM aluno 
+WHERE data_nascimento BETWEEN '2014-01-01' AND '2014-12-31';
+
+-- Testando a view
+SELECT * FROM vw_aluno_nasc_2014;
+-- O EXPLAIN da view deve mostrar type = range e key = idx_aluno_nasc.
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 5: QUANTO CUSTOU? (Tamanho dos Índices)
+-- -----------------------------------------------------------------------------
+ANALYZE TABLE aluno;
+SELECT 
+    ROUND(data_length / 1024 / 1024, 2) AS dados_mb,
+    ROUND(index_length / 1024 / 1024, 2) AS indices_mb
+FROM information_schema.TABLES 
+WHERE table_schema = 'onibusescola' AND table_name = 'aluno';
+
+-- -----------------------------------------------------------------------------
+-- ETAPA 6: MONTAR A ENTREGA (Preencher a Tabela medicao)
+-- -----------------------------------------------------------------------------
+-- Você deve rodar os EXPLAINs e os SELECTs, anotar os tempos e os rows,
+-- e depois inserir os dados na tabela abaixo para a entrega.
+
+INSERT INTO medicao (consulta, descricao, tempo_sem_indice, rows_sem_indice, tempo_com_indice, rows_com_indice) VALUES
+('C1', 'Busca por Nome (Igualdade)', 0.0000, 0, 0.0000, 1), -- Substitua pelos seus valores reais
+('C2', 'Busca por Data (Intervalo)', 0.0000, 0, 0.0000, 0),
+('C3', 'Busca Composta (Turno + Escola)', 0.0000, 0, 0.0000, 0),
+('C4', 'Busca com Função (YEAR)', 0.0000, 0, 0.0000, 0);
+
+-- Consulta final para ver o resultado da entrega
+SELECT * FROM medicao;
