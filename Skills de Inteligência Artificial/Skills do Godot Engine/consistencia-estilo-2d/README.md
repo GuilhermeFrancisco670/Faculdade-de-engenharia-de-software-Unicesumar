@@ -1,0 +1,1 @@
+Padronização de estilo visual e transferência de estilo (Style Transfer) para ativos e animações 2D. Garante a manutenção da coesão de traço, iluminação, resolução e cores entre sprites, NPCs, cenários e itens utilizando imagens de referência e âncoras estilo ControlNet ou IP-Adapter.
